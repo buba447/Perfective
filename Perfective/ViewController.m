@@ -56,6 +56,7 @@
   textures_ = [[NSMutableDictionary alloc] init];
   shaders_ = [[NSMutableDictionary alloc] init];
   debugGeometry_ = [NSMutableArray array];
+  
   self.context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
 //  UIImageView *new = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"photo2.jpg"]];
 //  new.frame = self.view.bounds;
@@ -66,17 +67,19 @@
   selectedImage_ = [UIImage imageNamed:@"photo.JPG"];
   CGFloat scale = self.view.bounds.size.width / selectedImage_.size.width;
   scaledImageSize.width = selectedImage_.size.width * scale;
-  scaledImageSize.height = selectedImage_.size.height * scale;
+  scaledImageSize.height = self.view.bounds.size.height * 0.5;
+
+  
   
   needsUpdate_ = YES;
   topLeft_ = [self setupCornerView];
-  topLeft_.center = CGPointMake(25, 25);
+  topLeft_.center = CGPointMake(44, 44);
   topRight_ = [self setupCornerView];
-  topRight_.center = CGPointMake(400, 25);
+  topRight_.center = CGPointMake(self.view.bounds.size.width - 44, 44);
   bottomLeft_ = [self setupCornerView];
-  bottomLeft_.center = CGPointMake(25, 300);
+  bottomLeft_.center = CGPointMake(44, (self.view.bounds.size.height * 0.5) - 44);
   bottomrRight_ = [self setupCornerView];
-  bottomrRight_.center = CGPointMake(400, 300);
+  bottomrRight_.center = CGPointMake(self.view.bounds.size.width - 44, (self.view.bounds.size.height * 0.5) - 44);
 
   if (!self.context) {
       NSLog(@"Failed to create ES context");
@@ -152,7 +155,8 @@
   NSDictionary *uniforms2 = @{@"modelViewProjectionMatrix": @"uniformCameraProjectionMatrix"};
   
   NSDictionary *attributes2 = @{@"position": @(GLKVertexAttribPosition),
-                               @"texture" : @(GLKVertexAttribTexCoord0)};
+                               @"texture" : @(GLKVertexAttribTexCoord0),
+                                @"texture_b" : @(GLKVertexAttribTexCoord1)};
   
   [self loadShaderNamed:@"circleShader" withVertexAttributes:attributes2 andUniforms:uniforms2];
   
@@ -164,22 +168,9 @@
   glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glShadeModel (GL_SMOOTH);
   
-  data_= calloc(24, sizeof(GLfloat));
+  data_= [self initBufferOfSize:4 twoTextureChannels:YES];
   
-  hData_ = calloc(24, sizeof(GLfloat));
-  
-  
-  
-  
-//  [self logBuffer:data_];
-  
-  
-
-//  square = normalVertices;
-//  [self computeTextureW:square];
-  
-  [self loadDebugMesh:data_ withSecondTexture:NO withSize:sizeof(GLfloat) * 36];
-  [self loadDebugMesh:hData_ withSecondTexture:NO  withSize:sizeof(GLfloat) * 36];
+  hData_ = [self initBufferOfSize:4 twoTextureChannels:NO];
 }
 
 - (CGPoint)intersectionOfLineFrom:(CGPoint)p1 to:(CGPoint)p2 withLineFrom:(CGPoint)p3 to:(CGPoint)p4
@@ -217,20 +208,20 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
 - (void)computeLoupeDateFromPoint:(CGPoint)point {
   
   float zoomScale = 2;
-  float loupeSize = 100;
+  float loupeSize = 174;
   
   CGPoint loupeCenter = point;
-  if (loupeCenter.y < (loupeSize * 1.5)) {
-    loupeCenter.y += loupeSize;
-  } else {
-    loupeCenter.y -= loupeSize;
-  }
+//  if (loupeCenter.y < (loupeSize * 1.5)) {
+//    loupeCenter.y += loupeSize;
+//  } else {
+    loupeCenter.y -= 70;
+//  }
   
   CGPoint centerOfSample = point;
   CGPoint uvSampleCenter = CGPointMake(centerOfSample.x / scaledImageSize.width, centerOfSample.y / scaledImageSize.height);
-  CGFloat uvOffsetSize = (1 / (loupeSize / zoomScale)) * 0.5;
-  
-  //top left
+  CGFloat uvOffsetSize = ((loupeSize / scaledImageSize.width) / zoomScale) * 0.5;
+  //              x  y   z    u   v   q    u   v   q
+  //top left      0, 1,  2 -  3,  4,  5 -  6,  7,  8
   data_[0] = loupeCenter.x - (loupeSize * 0.5);
   data_[1] = loupeCenter.y - (loupeSize * 0.5);
   
@@ -238,25 +229,33 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   data_[4] = uvSampleCenter.y - uvOffsetSize;
   data_[5] = 1.f;
   
-  //top right
-  data_[6] = loupeCenter.x + (loupeSize * 0.5);
-  data_[7] = loupeCenter.y - (loupeSize * 0.5);
-  data_[9] = uvSampleCenter.x + uvOffsetSize;
-  data_[10] = uvSampleCenter.y - uvOffsetSize;
-  data_[11] = 1.f;
-  //bottom left
-  data_[12] = loupeCenter.x - (loupeSize * 0.5);
-  data_[13] = loupeCenter.y + (loupeSize * 0.5);
-  data_[15] = uvSampleCenter.x - uvOffsetSize;
-  data_[16] = uvSampleCenter.y + uvOffsetSize;
-  data_[17] = 1.f;
-  //bottom right
-  data_[18] = loupeCenter.x + (loupeSize * 0.5);
+  //              x  y   z    u   v   q    u   v   q
+  //top right     9, 10, 11 - 12, 13, 14 - 15, 16, 17
+  data_[9] = loupeCenter.x + (loupeSize * 0.5);
+  data_[10] = loupeCenter.y - (loupeSize * 0.5);
+  
+  data_[12] = uvSampleCenter.x + uvOffsetSize;
+  data_[13] = uvSampleCenter.y - uvOffsetSize;
+  data_[14] = 1.f;
+  data_[15] = 1.f;
+  
+  //              x   y   z    u   v   q    u   v   q
+  //bottom left   18, 19, 20 - 21, 22, 23 - 24, 25, 26
+  data_[18] = loupeCenter.x - (loupeSize * 0.5);
   data_[19] = loupeCenter.y + (loupeSize * 0.5);
-  data_[21] = uvSampleCenter.x + uvOffsetSize;
+  data_[21] = uvSampleCenter.x - uvOffsetSize;
   data_[22] = uvSampleCenter.y + uvOffsetSize;
   data_[23] = 1.f;
-
+  data_[25] = 1.f;
+  //              x   y   z    u   v   q    u   v   q
+  //bottom right  27, 28, 29 - 30, 31, 32 - 33, 34, 35
+  data_[27] = loupeCenter.x + (loupeSize * 0.5);
+  data_[28] = loupeCenter.y + (loupeSize * 0.5);
+  data_[30] = uvSampleCenter.x + uvOffsetSize;
+  data_[31] = uvSampleCenter.y + uvOffsetSize;
+  data_[32] = 1.f;
+  data_[33] = 1.f;
+  data_[34] = 1.f;
 }
 
 - (void)computeDataForSquare:(GLfloat *)trap
@@ -347,47 +346,59 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
 
   CGPoint offset = CGPointMake((self.view.bounds.size.width / 2) - groupCenter.x, (self.view.bounds.size.height / 2) - groupCenter.y);
   
-  topLeft_.center = CGPointMake(topLeft_.center.x + offset.x, topLeft_.center.y + offset.y);
-  bottomLeft_.center = CGPointMake(bottomLeft_.center.x + offset.x, bottomLeft_.center.y + offset.y);
-  topRight_.center = CGPointMake(topRight_.center.x + offset.x, topRight_.center.y + offset.y);
-  bottomrRight_.center = CGPointMake(bottomrRight_.center.x + offset.x, bottomrRight_.center.y + offset.y);
-  topLeftPosition = topLeft_.center;
-  topRightPosition = topRight_.center;
-  bottomLeftPosition = bottomLeft_.center;
-  bottomRightPosition = bottomrRight_.center;
+//  topLeft_.center = CGPointMake(topLeft_.center.x + offset.x, topLeft_.center.y + offset.y);
+//  bottomLeft_.center = CGPointMake(bottomLeft_.center.x + offset.x, bottomLeft_.center.y + offset.y);
+//  topRight_.center = CGPointMake(topRight_.center.x + offset.x, topRight_.center.y + offset.y);
+//  bottomrRight_.center = CGPointMake(bottomrRight_.center.x + offset.x, bottomrRight_.center.y + offset.y);
+//  topLeftPosition = topLeft_.center;
+//  topRightPosition = topRight_.center;
+//  bottomLeftPosition = bottomLeft_.center;
+//  bottomRightPosition = bottomrRight_.center;
   needsUpdate_ = YES;
 }
 
-- (void)loadDebugMesh:(GLfloat[])mesh withSecondTexture:(BOOL)secondTexture withSize:(size_t)size {
-  //  return;
+- (GLfloat *)initBufferOfSize:(GLint)vertexCount twoTextureChannels:(BOOL)twoUVChannels {
+  GLint strideCount = twoUVChannels ? 9 : 6;
+  GLint strideByteSize = strideCount * sizeof(GLfloat);
+  
+  GLfloat *data = calloc(strideCount * vertexCount, sizeof(GLfloat));
+  
   GLuint newVertexArray;
   
   glGenVertexArraysOES(1, &newVertexArray);
   glBindVertexArrayOES(newVertexArray);
   
   GLuint newVertexBuffer;
+  
   glGenBuffers(1, &newVertexBuffer);
   glBindBuffer(GL_ARRAY_BUFFER, newVertexBuffer);
-  glBufferData(GL_ARRAY_BUFFER, size, mesh, GL_DYNAMIC_DRAW);
+  glBufferData(GL_ARRAY_BUFFER, strideByteSize * vertexCount, data, GL_DYNAMIC_DRAW);
   
+  GLuint offset = 0;
   glEnableVertexAttribArray(GLKVertexAttribPosition);
-  glVertexAttribPointer(GLKVertexAttribPosition, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), BUFFER_OFFSET(0));
+  glVertexAttribPointer(GLKVertexAttribPosition, 3, GL_FLOAT, GL_FALSE, strideByteSize, (const void*)offset);
+  
+  offset += 3 * sizeof(GLfloat);
+  
   glEnableVertexAttribArray(GLKVertexAttribTexCoord0);
-  glVertexAttribPointer(GLKVertexAttribTexCoord0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), BUFFER_OFFSET(12));
-  if (secondTexture) {
+  glVertexAttribPointer(GLKVertexAttribTexCoord0, 3, GL_FLOAT, GL_FALSE, strideByteSize, (const void*)offset);
+  
+  if (twoUVChannels) {
+    offset += 3 * sizeof(GLfloat);
     glEnableVertexAttribArray(GLKVertexAttribTexCoord1);
-    glVertexAttribPointer(GLKVertexAttribTexCoord0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), BUFFER_OFFSET(24));
+    glVertexAttribPointer(GLKVertexAttribTexCoord1, 3, GL_FLOAT, GL_FALSE, strideByteSize, (const void*)offset);
   }
   
   
   BWMesh *normalMesh = [[BWMesh alloc] init];
   normalMesh.vertexArray = newVertexArray;
   normalMesh.vertexBuffer = newVertexBuffer;
-  normalMesh.vertexCount = 4;
+  normalMesh.vertexCount = vertexCount;
   [debugGeometry_ addObject:normalMesh];
   
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArrayOES(0);
+  return data;
 }
 
 - (GLuint)loadTextureNamed:(NSString *)file {
@@ -444,26 +455,29 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
 - (void)glkView:(GLKView *)view drawInRect:(CGRect)rect
 {
   BWMesh *mesh = debugGeometry_.firstObject;
+  BWMesh *mesh2 = debugGeometry_[1];
+  
+  //Update Everything
+  
+  
   glBindBuffer(GL_ARRAY_BUFFER, mesh.vertexBuffer);
   glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(GLfloat) * 36, data_);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   
+  glBindBuffer(GL_ARRAY_BUFFER, mesh2.vertexBuffer);
+  glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(GLfloat) * 24, hData_);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  
   GLKMatrix4 projection = GLKMatrix4MakeOrtho(0, self.view.bounds.size.width, self.view.bounds.size.height, 0, 1, -1);
   glClearColor(0.f, 0.f, 0.f, 0.f);
+  
+  
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-//
-//
   glBindTexture(GL_TEXTURE_2D, [self loadTextureNamed:@"barn2.jpg"]);
   glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  
   BWShaderObject *debugShader = [shaders_ objectForKey:@"Shader"];
-  
-  BWMesh *mesh2 = debugGeometry_[1];
-  
-  glBindBuffer(GL_ARRAY_BUFFER, mesh2.vertexBuffer);
-  glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(GLfloat) * 36, hData_);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  
   glBindVertexArrayOES(mesh2.vertexArray);
   glUseProgram(debugShader.shaderProgram);
   
@@ -476,13 +490,45 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   glDrawArrays(GL_TRIANGLE_STRIP, 0, mesh2.vertexCount);
   
   if (drawOverlay_) {
-    GLKMatrix4 adjH = [self adjustedHomographicMatrix];
-    bool is;
-    GLKMatrix4 invertR = GLKMatrix4Invert(adjH, &is);
+    GLKMatrix4 transHomography = [self transHomographicMatrix];
+    
+    int viewport[] = {0, 0, self.view.bounds.size.width, self.view.bounds.size.height};
+    
+    GLKVector3 topLeft = GLKMathProject(GLKVector3Make(0, 0, 0), transHomography, projection, viewport);
+    topLeft.y = self.view.bounds.size.height - topLeft.y;
+    
+    GLKVector3 topRight = GLKMathProject(GLKVector3Make(scaledImageSize.width, 0, 0), transHomography, projection, viewport);
+    topRight.y = self.view.bounds.size.height - topRight.y;
+    
+    GLKVector3 bottomLeft = GLKMathProject(GLKVector3Make(0, scaledImageSize.height, 0), transHomography, projection, viewport);
+    bottomLeft.y = self.view.bounds.size.height - bottomLeft.y;
+    
+    GLKVector3 bottomRight = GLKMathProject(GLKVector3Make(scaledImageSize.width, scaledImageSize.height, 0), transHomography, projection, viewport);
+    bottomRight.y = self.view.bounds.size.height - bottomRight.y;
+    
+    CGRect boundingBox = [self boundingBoxWithTopLeft:CGPointMake(topLeft.x, topLeft.y)
+                                             topRight:CGPointMake(topRight.x, topRight.y)
+                                           bottomLeft:CGPointMake(bottomLeft.x, bottomLeft.y)
+                                          bottomRight:CGPointMake(bottomRight.x, bottomRight.y)];
+    
+    //figure out scale
+    CGFloat scalex = scaledImageSize.width / boundingBox.size.width;
+    CGFloat scaley = scaledImageSize.height / boundingBox.size.height;
+    
+    CGPoint offset = CGPointMake(- boundingBox.origin.x,
+                                 - boundingBox.origin.y);
+    
+    GLKMatrix4 projection2 = GLKMatrix4MakeOrtho(0, self.view.bounds.size.width, self.view.bounds.size.height * 0.5, -self.view.bounds.size.height * 0.5, 1, -1);
+    GLKMatrix4 adjustedProjection = GLKMatrix4Translate(GLKMatrix4Scale(projection2, scalex, scaley, 1), offset.x, offset.y, 0);
     glUniform1i(debugShader.uniformHasTexture, 1);
-    glUniformMatrix4fv(debugShader.uniformCameraProjectionMatrix, 1, 0, GLKMatrix4Multiply(GLKMatrix4Translate(GLKMatrix4Scale(projection, 0.5, 0.5, 0.5), 170, 500, 0), [self transHomographicMatrix]).m);
+    glUniformMatrix4fv(debugShader.uniformCameraProjectionMatrix, 1, 0, GLKMatrix4Multiply(adjustedProjection, transHomography).m);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, mesh2.vertexCount);
   }
+  
+  
+  
+
+  
   glBindVertexArrayOES(0);
   
   if (drawLoupe_) {
