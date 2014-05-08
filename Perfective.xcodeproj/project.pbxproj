@@ -7,14 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		481471561910C91F00729C38 /* photo2.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 481471551910C91F00729C38 /* photo2.jpg */; };
-		48319B171919CA87001788D7 /* fall-barn.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 48319B161919CA87001788D7 /* fall-barn.jpg */; };
 		48319B191919CB57001788D7 /* barn2.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 48319B181919CB57001788D7 /* barn2.jpg */; };
-		48319B1B1919CEB9001788D7 /* three.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 48319B1A1919CEB9001788D7 /* three.jpg */; };
-		48319B1F1919D0F2001788D7 /* photo 3.JPG in Resources */ = {isa = PBXBuildFile; fileRef = 48319B1C1919D0F2001788D7 /* photo 3.JPG */; };
-		48319B201919D0F2001788D7 /* photo 2.JPG in Resources */ = {isa = PBXBuildFile; fileRef = 48319B1D1919D0F2001788D7 /* photo 2.JPG */; };
-		48319B211919D0F2001788D7 /* photo 1.JPG in Resources */ = {isa = PBXBuildFile; fileRef = 48319B1E1919D0F2001788D7 /* photo 1.JPG */; };
-		48319B231919D1C7001788D7 /* photo_1.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 48319B221919D1C7001788D7 /* photo_1.jpg */; };
 		48319B36191AB48E001788D7 /* circleShader.fsh in Resources */ = {isa = PBXBuildFile; fileRef = 48319B35191AB48E001788D7 /* circleShader.fsh */; };
 		48319B38191AB49D001788D7 /* circleShader.vsh in Resources */ = {isa = PBXBuildFile; fileRef = 48319B37191AB49D001788D7 /* circleShader.vsh */; };
 		488296C6190B0AE60061D897 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 488296C5190B0AE60061D897 /* Foundation.framework */; };
@@ -35,7 +28,6 @@
 		488296EF190B0AE60061D897 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 488296C9190B0AE60061D897 /* UIKit.framework */; };
 		488296F7190B0AE60061D897 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 488296F5190B0AE60061D897 /* InfoPlist.strings */; };
 		488296F9190B0AE60061D897 /* PerfectiveTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 488296F8190B0AE60061D897 /* PerfectiveTests.m */; };
-		48829703190B0B410061D897 /* photo.JPG in Resources */ = {isa = PBXBuildFile; fileRef = 48829702190B0B410061D897 /* photo.JPG */; };
 		48829706190B0D030061D897 /* BWMesh.m in Sources */ = {isa = PBXBuildFile; fileRef = 48829705190B0D030061D897 /* BWMesh.m */; };
 		48829709190B10AB0061D897 /* BWShaderObject.m in Sources */ = {isa = PBXBuildFile; fileRef = 48829708190B10AB0061D897 /* BWShaderObject.m */; };
 /* End PBXBuildFile section */
@@ -51,14 +43,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		481471551910C91F00729C38 /* photo2.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = photo2.jpg; sourceTree = "<group>"; };
-		48319B161919CA87001788D7 /* fall-barn.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = "fall-barn.jpg"; sourceTree = "<group>"; };
 		48319B181919CB57001788D7 /* barn2.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = barn2.jpg; sourceTree = "<group>"; };
-		48319B1A1919CEB9001788D7 /* three.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = three.jpg; sourceTree = "<group>"; };
-		48319B1C1919D0F2001788D7 /* photo 3.JPG */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = "photo 3.JPG"; sourceTree = "<group>"; };
-		48319B1D1919D0F2001788D7 /* photo 2.JPG */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = "photo 2.JPG"; sourceTree = "<group>"; };
-		48319B1E1919D0F2001788D7 /* photo 1.JPG */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = "photo 1.JPG"; sourceTree = "<group>"; };
-		48319B221919D1C7001788D7 /* photo_1.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = photo_1.jpg; sourceTree = "<group>"; };
 		48319B35191AB48E001788D7 /* circleShader.fsh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.glsl; path = circleShader.fsh; sourceTree = "<group>"; };
 		48319B37191AB49D001788D7 /* circleShader.vsh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.glsl; path = circleShader.vsh; sourceTree = "<group>"; };
 		488296C2190B0AE60061D897 /* Perfective.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Perfective.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -84,7 +69,6 @@
 		488296F4190B0AE60061D897 /* PerfectiveTests-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "PerfectiveTests-Info.plist"; sourceTree = "<group>"; };
 		488296F6190B0AE60061D897 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		488296F8190B0AE60061D897 /* PerfectiveTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PerfectiveTests.m; sourceTree = "<group>"; };
-		48829702190B0B410061D897 /* photo.JPG */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = photo.JPG; sourceTree = "<group>"; };
 		48829704190B0D030061D897 /* BWMesh.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BWMesh.h; sourceTree = "<group>"; };
 		48829705190B0D030061D897 /* BWMesh.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BWMesh.m; sourceTree = "<group>"; };
 		48829707190B10AB0061D897 /* BWShaderObject.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BWShaderObject.h; sourceTree = "<group>"; };
@@ -186,15 +170,7 @@
 				488296D2190B0AE60061D897 /* InfoPlist.strings */,
 				488296D5190B0AE60061D897 /* main.m */,
 				488296D7190B0AE60061D897 /* Perfective-Prefix.pch */,
-				48319B1C1919D0F2001788D7 /* photo 3.JPG */,
-				48319B1D1919D0F2001788D7 /* photo 2.JPG */,
-				48319B1E1919D0F2001788D7 /* photo 1.JPG */,
-				48319B221919D1C7001788D7 /* photo_1.jpg */,
-				48319B1A1919CEB9001788D7 /* three.jpg */,
-				48829702190B0B410061D897 /* photo.JPG */,
-				481471551910C91F00729C38 /* photo2.jpg */,
 				48319B181919CB57001788D7 /* barn2.jpg */,
-				48319B161919CA87001788D7 /* fall-barn.jpg */,
 			);
 			name = "Supporting Files";
 			sourceTree = "<group>";
@@ -298,17 +274,9 @@
 			files = (
 				48319B191919CB57001788D7 /* barn2.jpg in Resources */,
 				488296E1190B0AE60061D897 /* Shader.vsh in Resources */,
-				48319B211919D0F2001788D7 /* photo 1.JPG in Resources */,
 				488296E6190B0AE60061D897 /* Images.xcassets in Resources */,
-				48319B231919D1C7001788D7 /* photo_1.jpg in Resources */,
-				481471561910C91F00729C38 /* photo2.jpg in Resources */,
-				48319B1B1919CEB9001788D7 /* three.jpg in Resources */,
-				48319B171919CA87001788D7 /* fall-barn.jpg in Resources */,
 				48319B38191AB49D001788D7 /* circleShader.vsh in Resources */,
-				48319B201919D0F2001788D7 /* photo 2.JPG in Resources */,
-				48829703190B0B410061D897 /* photo.JPG in Resources */,
 				488296DF190B0AE60061D897 /* Shader.fsh in Resources */,
-				48319B1F1919D0F2001788D7 /* photo 3.JPG in Resources */,
 				48319B36191AB48E001788D7 /* circleShader.fsh in Resources */,
 				488296D4190B0AE60061D897 /* InfoPlist.strings in Resources */,
 				488296DD190B0AE60061D897 /* Main.storyboard in Resources */,

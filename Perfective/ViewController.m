@@ -11,10 +11,9 @@
 #import "BWShaderObject.h"
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
-@interface ViewController () {
+@interface ViewController () <UIImagePickerControllerDelegate, UINavigationControllerDelegate> {
   GLuint _program;
   NSMutableArray *debugGeometry_;
-  NSMutableDictionary *textures_;
   NSMutableDictionary *shaders_;
   GLfloat *data_;
   GLfloat *hData_;
@@ -22,7 +21,6 @@
   UIView *topRight_;
   UIView *bottomLeft_;
   UIView *bottomrRight_;
-  UIImage *selectedImage_;
   BOOL needsUpdate_;
   CGPoint topLeftPosition;
   CGPoint bottomLeftPosition;
@@ -31,6 +29,9 @@
   CGSize scaledImageSize;
   BOOL drawOverlay_;
   BOOL drawLoupe_;
+  GLuint _texture;
+  BOOL textureLoaded_;
+  BOOL pauseUpdate_;
 }
 
 @property (strong, nonatomic) EAGLContext *context;
@@ -50,26 +51,19 @@
 }
 
 - (void)viewDidLoad {
-  drawOverlay_ = NO;
+  drawOverlay_ = YES;
   drawLoupe_ = NO;
   [super viewDidLoad];
-  textures_ = [[NSMutableDictionary alloc] init];
   shaders_ = [[NSMutableDictionary alloc] init];
   debugGeometry_ = [NSMutableArray array];
-  
+  textureLoaded_ = NO;
   self.context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
-//  UIImageView *new = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"photo2.jpg"]];
-//  new.frame = self.view.bounds;
-//  new.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
-//  new.alpha = 0.4;
-//  new.contentMode = UIViewContentModeScaleAspectFit;
-//  [self.view addSubview:new];
-  selectedImage_ = [UIImage imageNamed:@"photo.JPG"];
-  CGFloat scale = self.view.bounds.size.width / selectedImage_.size.width;
-  scaledImageSize.width = selectedImage_.size.width * scale;
+
+
+  scaledImageSize.width = self.view.bounds.size.width;
   scaledImageSize.height = self.view.bounds.size.height * 0.5;
 
-  
+  pauseUpdate_ = NO;
   
   needsUpdate_ = YES;
   topLeft_ = [self setupCornerView];
@@ -94,8 +88,35 @@
   [update addTarget:self action:@selector(updateOverlay) forControlEvents:UIControlEventTouchUpInside];
   update.frame = CGRectMake(0, self.view.bounds.size.height - 44, 70, 44);
   [self.view addSubview:update];
+  
+  UIButton *picImage = [UIButton buttonWithType:UIButtonTypeCustom];
+  [picImage setTitle:@"Pick" forState:UIControlStateNormal];
+  [picImage addTarget:self action:@selector(pickImage) forControlEvents:UIControlEventTouchUpInside];
+  picImage.frame = CGRectMake(self.view.bounds.size.width - 70, self.view.bounds.size.height - 44, 70, 44);
+  [self.view addSubview:picImage];
+  
   [self setupGL];
 }
+
+- (void)pickImage {
+  pauseUpdate_ = YES;
+  UIImagePickerController *imagePicker = [[UIImagePickerController alloc] init];
+  imagePicker.delegate = self;
+  [self presentViewController:imagePicker animated:YES completion:nil];
+}
+
+- (void)imagePickerController:(UIImagePickerController *)picker didFinishPickingMediaWithInfo:(NSDictionary *)info {
+  UIImage *image = [info valueForKey:UIImagePickerControllerOriginalImage];
+  [self loadTextureImage:image];
+  pauseUpdate_ = NO;
+  [self dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)imagePickerControllerDidCancel:(UIImagePickerController *)picker {
+  pauseUpdate_ = NO;
+  [self dismissViewControllerAnimated:YES completion:nil];
+}
+
 
 - (UIView *)setupCornerView {
   UIView *view = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 50, 50)];
@@ -159,7 +180,7 @@
                                 @"texture_b" : @(GLKVertexAttribTexCoord1)};
   
   [self loadShaderNamed:@"circleShader" withVertexAttributes:attributes2 andUniforms:uniforms2];
-  
+  [self loadTextureImage:[UIImage imageNamed:@"barn2.jpg"]];
 //  glEnable(GL_DEPTH_TEST);
   glEnable(GL_TEXTURE_2D);
   
@@ -344,7 +365,7 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   CGRect bountingBox = [self boundingBoxWithTopLeft:topLeft_.center topRight:topRight_.center bottomLeft:bottomLeft_.center bottomRight:bottomrRight_.center];
   CGPoint groupCenter = CGPointMake(CGRectGetMidX(bountingBox), CGRectGetMidY(bountingBox));
 
-  CGPoint offset = CGPointMake((self.view.bounds.size.width / 2) - groupCenter.x, (self.view.bounds.size.height / 2) - groupCenter.y);
+//  CGPoint offset = CGPointMake((self.view.bounds.size.width / 2) - groupCenter.x, (self.view.bounds.size.height / 2) - groupCenter.y);
   
 //  topLeft_.center = CGPointMake(topLeft_.center.x + offset.x, topLeft_.center.y + offset.y);
 //  bottomLeft_.center = CGPointMake(bottomLeft_.center.x + offset.x, bottomLeft_.center.y + offset.y);
@@ -401,23 +422,45 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   return data;
 }
 
-- (GLuint)loadTextureNamed:(NSString *)file {
-  if ([textures_ objectForKey:file]) {
-    return [[textures_ objectForKey:file] integerValue];
+
+
+- (void)loadTextureImage:(UIImage *)image {
+  if (textureLoaded_) {
+    textureLoaded_ = NO;
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDeleteTextures(1, &_texture);
   }
-  CGImageRef image = [UIImage imageNamed:file].CGImage;
+  
   GLuint returnTexture;
-  GLuint width = CGImageGetWidth(image);
-  GLuint height = CGImageGetHeight(image);
+  
+  GLuint width = scaledImageSize.width * 2;
+  GLuint height = scaledImageSize.height * 2;
   CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
   void *imageData = malloc( height * width * 4 );
   CGContextRef imgcontext = CGBitmapContextCreate( imageData, width, height, 8, 4 * width, colorSpace, kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big );
+  UIGraphicsPushContext(imgcontext);
   CGColorSpaceRelease( colorSpace );
   CGContextClearRect( imgcontext, CGRectMake( 0, 0, width, height ) );
-  CGContextTranslateCTM( imgcontext, 0, height - height );
-  CGContextDrawImage( imgcontext, CGRectMake( 0, 0, width, height ), image );
+  CGAffineTransform flipVertical = CGAffineTransformMake(1, 0, 0, -1, 0, height);
+  CGContextConcatCTM(imgcontext, flipVertical);
+  CGRect imageDrawRect = CGRectZero;
+  imageDrawRect.size = CGSizeMake(width, height);
+  CGFloat boundAspect = (float)width / (float)height;
+  // 4w 2t = 2a
+  CGFloat imageAspect = image.size.width / image.size.height;
+  // 3w 2t = 1.5  -- change width by height factor
+  // 6w 2t = 3 -- change height by width factor
+  if (imageAspect < boundAspect) {
+    imageDrawRect.size.width = (height / image.size.height) * image.size.width;
+    imageDrawRect.origin.x = (width - imageDrawRect.size.width) * 0.5;
+  } else if (imageAspect > boundAspect) {
+    imageDrawRect.size.height = (width / image.size.width) * image.size.height;
+    imageDrawRect.origin.y = (height - imageDrawRect.size.height) * 0.5;
+  }
+
+  [image drawInRect:imageDrawRect];
   
-  
+
   glGenTextures(1, &returnTexture);
   glBindTexture(GL_TEXTURE_2D, returnTexture);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -432,9 +475,8 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   free(imageData);
   CGContextRelease(imgcontext);
   
-  [textures_ setValue:@(returnTexture) forKey:file];
-  
-  return returnTexture;
+  _texture = returnTexture;
+  textureLoaded_ = YES;
 }
 
 #pragma mark - GLKView and GLKViewController delegate methods
@@ -454,6 +496,9 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
 
 - (void)glkView:(GLKView *)view drawInRect:(CGRect)rect
 {
+  if (pauseUpdate_) {
+    return;
+  }
   BWMesh *mesh = debugGeometry_.firstObject;
   BWMesh *mesh2 = debugGeometry_[1];
   
@@ -473,15 +518,18 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   
   
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  glBindTexture(GL_TEXTURE_2D, [self loadTextureNamed:@"barn2.jpg"]);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  if (textureLoaded_) {
+    glBindTexture(GL_TEXTURE_2D, _texture);
+    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  }
+  
   
   BWShaderObject *debugShader = [shaders_ objectForKey:@"Shader"];
   glBindVertexArrayOES(mesh2.vertexArray);
   glUseProgram(debugShader.shaderProgram);
   
-  glUniform1i(debugShader.uniformHasTexture, 1);
+  glUniform1i(debugShader.uniformHasTexture, textureLoaded_);
   glUniformMatrix4fv(debugShader.uniformCameraProjectionMatrix, 1, 0, GLKMatrix4Multiply(projection, GLKMatrix4Identity).m);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, mesh2.vertexCount);
   
@@ -489,7 +537,7 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   glUniformMatrix4fv(debugShader.uniformCameraProjectionMatrix, 1, 0, GLKMatrix4Multiply(projection, [self homographicMatrix]).m);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, mesh2.vertexCount);
   
-  if (drawOverlay_) {
+  if (drawOverlay_ && textureLoaded_) {
     GLKMatrix4 transHomography = [self transHomographicMatrix];
     
     int viewport[] = {0, 0, self.view.bounds.size.width, self.view.bounds.size.height};
@@ -531,7 +579,7 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   
   glBindVertexArrayOES(0);
   
-  if (drawLoupe_) {
+  if (drawLoupe_ && textureLoaded_) {
     BWShaderObject *circleShader = [shaders_ objectForKey:@"circleShader"];
     glUseProgram(circleShader.shaderProgram);
     glBindVertexArrayOES(mesh.vertexArray);
