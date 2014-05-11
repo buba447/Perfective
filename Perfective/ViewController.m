@@ -11,7 +11,7 @@
 #import "BWShaderObject.h"
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
-@interface ViewController () <UIImagePickerControllerDelegate, UINavigationControllerDelegate> {
+@interface ViewController () <UIImagePickerControllerDelegate, UINavigationControllerDelegate, UIScrollViewDelegate> {
   GLuint _program;
   NSMutableArray *debugGeometry_;
   NSMutableDictionary *shaders_;
@@ -32,6 +32,8 @@
   GLuint _texture;
   BOOL textureLoaded_;
   BOOL pauseUpdate_;
+  UIScrollView *hackScroller_;
+  UIView *zoomView_;
 }
 
 @property (strong, nonatomic) EAGLContext *context;
@@ -66,6 +68,21 @@
   pauseUpdate_ = NO;
   
   needsUpdate_ = YES;
+  hackScroller_ = [[UIScrollView alloc] initWithFrame:self.view.bounds];
+  hackScroller_.maximumZoomScale = 2;
+  hackScroller_.alwaysBounceHorizontal = YES;
+  hackScroller_.alwaysBounceVertical = YES;
+  hackScroller_.scrollEnabled = NO;
+  hackScroller_.contentSize = self.view.bounds.size;
+  hackScroller_.delegate = self;
+  [self.view addSubview:hackScroller_];
+  zoomView_ = [[UIView alloc] initWithFrame:self.view.bounds];
+  [hackScroller_ addSubview:zoomView_];
+  
+  UITapGestureRecognizer *tappy = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTap:)];
+  tappy.numberOfTapsRequired = 2;
+  [zoomView_ addGestureRecognizer:tappy];
+  
   topLeft_ = [self setupCornerView];
   topLeft_.center = CGPointMake(44, 44);
   topRight_ = [self setupCornerView];
@@ -96,6 +113,24 @@
   [self.view addSubview:picImage];
   
   [self setupGL];
+  
+  GLint maxRenderbufferSize;
+  glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxRenderbufferSize);
+  NSLog(@"");
+}
+
+- (void)handleDoubleTap:(UITapGestureRecognizer *)tap {
+  CGFloat zoomScale;
+  if (hackScroller_.zoomScale > 1) {
+    zoomScale = 1;
+  } else {
+    zoomScale = hackScroller_.maximumZoomScale;
+  }
+  [hackScroller_ setZoomScale:zoomScale animated:YES];
+}
+
+- (UIView*)viewForZoomingInScrollView:(UIScrollView *)scrollView {
+  return [scrollView.subviews objectAtIndex:0];
 }
 
 - (void)pickImage {
@@ -106,6 +141,10 @@
 }
 
 - (void)imagePickerController:(UIImagePickerController *)picker didFinishPickingMediaWithInfo:(NSDictionary *)info {
+  topLeft_.center = CGPointMake(44, 44);
+  topRight_.center = CGPointMake(self.view.bounds.size.width - 44, 44);
+  bottomLeft_.center = CGPointMake(44, (self.view.bounds.size.height * 0.5) - 44);
+  bottomrRight_.center = CGPointMake(self.view.bounds.size.width - 44, (self.view.bounds.size.height * 0.5) - 44);
   UIImage *image = [info valueForKey:UIImagePickerControllerOriginalImage];
   [self loadTextureImage:image];
   pauseUpdate_ = NO;
@@ -123,7 +162,7 @@
   view.backgroundColor = [UIColor colorWithWhite:1 alpha:0.3];
   UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handPan:)];
   [view addGestureRecognizer:pan];
-  [self.view addSubview:view];
+  [zoomView_ addSubview:view];
   return view;
 }
 
@@ -164,6 +203,7 @@
 }
 
 - (void)setupGL {
+  
   [EAGLContext setCurrentContext:self.context];
   
   NSDictionary *uniforms = @{@"modelViewProjectionMatrix": @"uniformCameraProjectionMatrix", @"hasTexture" : @"uniformHasTexture"};
@@ -173,7 +213,7 @@
   
   [self loadShaderNamed:@"Shader" withVertexAttributes:attributes andUniforms:uniforms];
   
-  NSDictionary *uniforms2 = @{@"modelViewProjectionMatrix": @"uniformCameraProjectionMatrix"};
+  NSDictionary *uniforms2 = @{@"modelViewProjectionMatrix": @"uniformCameraProjectionMatrix", @"hasTexture" : @"uniformHasTexture", @"diffuseColor" : @"uniformDiffuse", @"circleRadius" : @"uniformLight1"};
   
   NSDictionary *attributes2 = @{@"position": @(GLKVertexAttribPosition),
                                @"texture" : @(GLKVertexAttribTexCoord0),
@@ -229,14 +269,28 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
 - (void)computeLoupeDateFromPoint:(CGPoint)point {
   
   float zoomScale = 2;
-  float loupeSize = 174;
-  
+  float loupeSize = 128;
+  float loupeOffset = 50;
   CGPoint loupeCenter = point;
-//  if (loupeCenter.y < (loupeSize * 1.5)) {
-//    loupeCenter.y += loupeSize;
-//  } else {
-    loupeCenter.y -= 70;
-//  }
+  loupeCenter.y -= loupeOffset;
+  if (loupeCenter.y < loupeSize * 0.5) {
+    //Past the top
+/*
+   Not Known_______  New Loupe Center
+            |     /
+            |    /
+            |   /
+            |  / Needs to be loupeOffset
+            | /
+            |/
+            Touch point
+
+*/
+    loupeCenter.y = loupeSize * 0.5;
+    CGFloat xOffset = sqrtf((pow(loupeOffset, 2) - pow(point.y - loupeCenter.y, 2)));
+    loupeCenter.x = loupeCenter.x - xOffset > loupeSize ? loupeCenter.x - xOffset : loupeCenter.x + xOffset;
+  }
+
   
   CGPoint centerOfSample = point;
   CGPoint uvSampleCenter = CGPointMake(centerOfSample.x / scaledImageSize.width, centerOfSample.y / scaledImageSize.height);
@@ -494,6 +548,11 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   }
 }
 
+- (void)setNeedsGLKDisplay {
+  [(GLKView *)self.view display];
+}
+
+
 - (void)glkView:(GLKView *)view drawInRect:(CGRect)rect
 {
   if (pauseUpdate_) {
@@ -514,8 +573,8 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   
   GLKMatrix4 projection = GLKMatrix4MakeOrtho(0, self.view.bounds.size.width, self.view.bounds.size.height, 0, 1, -1);
+  projection = GLKMatrix4Translate(GLKMatrix4Scale(projection, hackScroller_.zoomScale, hackScroller_.zoomScale, 1), (-hackScroller_.contentOffset.x / hackScroller_.zoomScale), (-hackScroller_.contentOffset.y / hackScroller_.zoomScale), 0);
   glClearColor(0.f, 0.f, 0.f, 0.f);
-  
   
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   if (textureLoaded_) {
@@ -535,7 +594,8 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   
   glUniform1i(debugShader.uniformHasTexture, 0);
   glUniformMatrix4fv(debugShader.uniformCameraProjectionMatrix, 1, 0, GLKMatrix4Multiply(projection, [self homographicMatrix]).m);
-  glDrawArrays(GL_TRIANGLE_STRIP, 0, mesh2.vertexCount);
+  glLineWidth(4.f);
+  glDrawArrays(GL_LINE_LOOP, 0, mesh2.vertexCount);
   
   if (drawOverlay_ && textureLoaded_) {
     GLKMatrix4 transHomography = [self transHomographicMatrix];
@@ -553,6 +613,11 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
     
     GLKVector3 bottomRight = GLKMathProject(GLKVector3Make(scaledImageSize.width, scaledImageSize.height, 0), transHomography, projection, viewport);
     bottomRight.y = self.view.bounds.size.height - bottomRight.y;
+    
+    CGFloat leftEdge = (topLeft.x + bottomLeft.x) / 2;
+    CGFloat rightEdge = (topRight.x + bottomRight.x) / 2;
+    topLeft.x = bottomLeft.x = leftEdge;
+    topRight.x = bottomRight.x = rightEdge;
     
     CGRect boundingBox = [self boundingBoxWithTopLeft:CGPointMake(topLeft.x, topLeft.y)
                                              topRight:CGPointMake(topRight.x, topRight.y)
@@ -573,19 +638,18 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
     glDrawArrays(GL_TRIANGLE_STRIP, 0, mesh2.vertexCount);
   }
   
-  
-  
-
-  
   glBindVertexArrayOES(0);
   
   if (drawLoupe_ && textureLoaded_) {
     BWShaderObject *circleShader = [shaders_ objectForKey:@"circleShader"];
     glUseProgram(circleShader.shaderProgram);
     glBindVertexArrayOES(mesh.vertexArray);
-    glUniform1i(debugShader.uniformHasTexture, 1);
+    glUniform1i(circleShader.uniformHasTexture, 1);
+    glUniform1f(circleShader.uniformLight1, 0.04f);
+    glUniform4f(circleShader.uniformDiffuse, 0.7, 0.4, 0.f, 0.4);
     glUniformMatrix4fv(debugShader.uniformCameraProjectionMatrix, 1, 0, projection.m);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, mesh.vertexCount);
+    
     
   }
   
