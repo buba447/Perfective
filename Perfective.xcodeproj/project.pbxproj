@@ -29,7 +29,8 @@
 		488296F7190B0AE60061D897 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 488296F5190B0AE60061D897 /* InfoPlist.strings */; };
 		488296F9190B0AE60061D897 /* PerfectiveTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 488296F8190B0AE60061D897 /* PerfectiveTests.m */; };
 		48829706190B0D030061D897 /* BWMesh.m in Sources */ = {isa = PBXBuildFile; fileRef = 48829705190B0D030061D897 /* BWMesh.m */; };
-		48829709190B10AB0061D897 /* BWShaderObject.m in Sources */ = {isa = PBXBuildFile; fileRef = 48829708190B10AB0061D897 /* BWShaderObject.m */; };
+		48829709190B10AB0061D897 /* BWShader.m in Sources */ = {isa = PBXBuildFile; fileRef = 48829708190B10AB0061D897 /* BWShader.m */; };
+		48CADF46191F460F0090456C /* NSValue+BWValue.m in Sources */ = {isa = PBXBuildFile; fileRef = 48CADF45191F460F0090456C /* NSValue+BWValue.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,8 +72,10 @@
 		488296F8190B0AE60061D897 /* PerfectiveTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PerfectiveTests.m; sourceTree = "<group>"; };
 		48829704190B0D030061D897 /* BWMesh.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BWMesh.h; sourceTree = "<group>"; };
 		48829705190B0D030061D897 /* BWMesh.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BWMesh.m; sourceTree = "<group>"; };
-		48829707190B10AB0061D897 /* BWShaderObject.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BWShaderObject.h; sourceTree = "<group>"; };
-		48829708190B10AB0061D897 /* BWShaderObject.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BWShaderObject.m; sourceTree = "<group>"; };
+		48829707190B10AB0061D897 /* BWShader.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BWShader.h; sourceTree = "<group>"; };
+		48829708190B10AB0061D897 /* BWShader.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BWShader.m; sourceTree = "<group>"; };
+		48CADF44191F460F0090456C /* NSValue+BWValue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSValue+BWValue.h"; sourceTree = "<group>"; };
+		48CADF45191F460F0090456C /* NSValue+BWValue.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSValue+BWValue.m"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -153,10 +156,12 @@
 				48319B37191AB49D001788D7 /* circleShader.vsh */,
 				488296E2190B0AE60061D897 /* ViewController.h */,
 				488296E3190B0AE60061D897 /* ViewController.m */,
-				48829707190B10AB0061D897 /* BWShaderObject.h */,
-				48829708190B10AB0061D897 /* BWShaderObject.m */,
+				48829707190B10AB0061D897 /* BWShader.h */,
+				48829708190B10AB0061D897 /* BWShader.m */,
 				48829704190B0D030061D897 /* BWMesh.h */,
 				48829705190B0D030061D897 /* BWMesh.m */,
+				48CADF44191F460F0090456C /* NSValue+BWValue.h */,
+				48CADF45191F460F0090456C /* NSValue+BWValue.m */,
 				488296E5190B0AE60061D897 /* Images.xcassets */,
 				488296D0190B0AE60061D897 /* Supporting Files */,
 			);
@@ -300,7 +305,8 @@
 			files = (
 				488296E4190B0AE60061D897 /* ViewController.m in Sources */,
 				48829706190B0D030061D897 /* BWMesh.m in Sources */,
-				48829709190B10AB0061D897 /* BWShaderObject.m in Sources */,
+				48829709190B10AB0061D897 /* BWShader.m in Sources */,
+				48CADF46191F460F0090456C /* NSValue+BWValue.m in Sources */,
 				488296DA190B0AE60061D897 /* AppDelegate.m in Sources */,
 				488296D6190B0AE60061D897 /* main.m in Sources */,
 			);

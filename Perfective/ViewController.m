@@ -8,15 +8,15 @@
 
 #import "ViewController.h"
 #import "BWMesh.h"
-#import "BWShaderObject.h"
+#import "BWShader.h"
+
+
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
 @interface ViewController () <UIImagePickerControllerDelegate, UINavigationControllerDelegate, UIScrollViewDelegate> {
   GLuint _program;
   NSMutableArray *debugGeometry_;
   NSMutableDictionary *shaders_;
-  GLfloat *data_;
-  GLfloat *hData_;
   UIView *topLeft_;
   UIView *topRight_;
   UIView *bottomLeft_;
@@ -205,21 +205,13 @@
 - (void)setupGL {
   
   [EAGLContext setCurrentContext:self.context];
+
+  BWShader *shader = [[BWShader alloc] initWithShaderNamed:@"Shader"];
+  [shaders_ setObject:shader forKey:@"Shader"];
   
-  NSDictionary *uniforms = @{@"modelViewProjectionMatrix": @"uniformCameraProjectionMatrix", @"hasTexture" : @"uniformHasTexture"};
-  
-  NSDictionary *attributes = @{@"position": @(GLKVertexAttribPosition),
-                               @"texture" : @(GLKVertexAttribTexCoord0)};
-  
-  [self loadShaderNamed:@"Shader" withVertexAttributes:attributes andUniforms:uniforms];
-  
-  NSDictionary *uniforms2 = @{@"modelViewProjectionMatrix": @"uniformCameraProjectionMatrix", @"hasTexture" : @"uniformHasTexture", @"diffuseColor" : @"uniformDiffuse", @"circleRadius" : @"uniformLight1"};
-  
-  NSDictionary *attributes2 = @{@"position": @(GLKVertexAttribPosition),
-                               @"texture" : @(GLKVertexAttribTexCoord0),
-                                @"texture_b" : @(GLKVertexAttribTexCoord1)};
-  
-  [self loadShaderNamed:@"circleShader" withVertexAttributes:attributes2 andUniforms:uniforms2];
+  BWShader *shader2 = [[BWShader alloc] initWithShaderNamed:@"circleShader"];
+  [shaders_ setObject:shader2 forKey:@"circleShader"];
+
   [self loadTextureImage:[UIImage imageNamed:@"barn2.jpg"]];
 //  glEnable(GL_DEPTH_TEST);
   glEnable(GL_TEXTURE_2D);
@@ -229,9 +221,10 @@
   glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glShadeModel (GL_SMOOTH);
   
-  data_= [self initBufferOfSize:4 twoTextureChannels:YES];
-  
-  hData_ = [self initBufferOfSize:4 twoTextureChannels:NO];
+  BWMesh *mesh = [[BWMesh alloc] initWithNumberOfVertices:4];
+  BWMesh *mesh2 = [[BWMesh alloc] initWithNumberOfVertices:4];
+  [debugGeometry_ addObject:mesh];
+  [debugGeometry_ addObject:mesh2];
 }
 
 - (CGPoint)intersectionOfLineFrom:(CGPoint)p1 to:(CGPoint)p2 withLineFrom:(CGPoint)p3 to:(CGPoint)p4
@@ -295,45 +288,42 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   CGPoint centerOfSample = point;
   CGPoint uvSampleCenter = CGPointMake(centerOfSample.x / scaledImageSize.width, centerOfSample.y / scaledImageSize.height);
   CGFloat uvOffsetSize = ((loupeSize / scaledImageSize.width) / zoomScale) * 0.5;
+  BWMesh *loupe = debugGeometry_.firstObject;
+  
   //              x  y   z    u   v   q    u   v   q
   //top left      0, 1,  2 -  3,  4,  5 -  6,  7,  8
-  data_[0] = loupeCenter.x - (loupeSize * 0.5);
-  data_[1] = loupeCenter.y - (loupeSize * 0.5);
-  
-  data_[3] = uvSampleCenter.x - uvOffsetSize;
-  data_[4] = uvSampleCenter.y - uvOffsetSize;
-  data_[5] = 1.f;
+
+  GLKMatrix3 first = GLKMatrix3Make(loupeCenter.x - (loupeSize * 0.5), loupeCenter.y - (loupeSize * 0.5), 0,
+                                    uvSampleCenter.x - uvOffsetSize, uvSampleCenter.y - uvOffsetSize, 1.f,
+                                    0, 0, 0);
+  [loupe setVertexData:first atIndex:0];
   
   //              x  y   z    u   v   q    u   v   q
   //top right     9, 10, 11 - 12, 13, 14 - 15, 16, 17
-  data_[9] = loupeCenter.x + (loupeSize * 0.5);
-  data_[10] = loupeCenter.y - (loupeSize * 0.5);
-  
-  data_[12] = uvSampleCenter.x + uvOffsetSize;
-  data_[13] = uvSampleCenter.y - uvOffsetSize;
-  data_[14] = 1.f;
-  data_[15] = 1.f;
+
+  GLKMatrix3 second = GLKMatrix3Make(loupeCenter.x + (loupeSize * 0.5), loupeCenter.y - (loupeSize * 0.5), 0.f,
+                                     uvSampleCenter.x + uvOffsetSize, uvSampleCenter.y - uvOffsetSize, 1.f,
+                                     1.f, 0.f, 0.f);
+  [loupe setVertexData:second atIndex:1];
   
   //              x   y   z    u   v   q    u   v   q
   //bottom left   18, 19, 20 - 21, 22, 23 - 24, 25, 26
-  data_[18] = loupeCenter.x - (loupeSize * 0.5);
-  data_[19] = loupeCenter.y + (loupeSize * 0.5);
-  data_[21] = uvSampleCenter.x - uvOffsetSize;
-  data_[22] = uvSampleCenter.y + uvOffsetSize;
-  data_[23] = 1.f;
-  data_[25] = 1.f;
+  
+  
+  GLKMatrix3 third = GLKMatrix3Make(loupeCenter.x - (loupeSize * 0.5), loupeCenter.y + (loupeSize * 0.5), 0.f,
+                                    uvSampleCenter.x - uvOffsetSize, uvSampleCenter.y + uvOffsetSize, 1.f,
+                                    0.f, 1.f, 0.f);
+  [loupe setVertexData:third atIndex:2];
+  
   //              x   y   z    u   v   q    u   v   q
   //bottom right  27, 28, 29 - 30, 31, 32 - 33, 34, 35
-  data_[27] = loupeCenter.x + (loupeSize * 0.5);
-  data_[28] = loupeCenter.y + (loupeSize * 0.5);
-  data_[30] = uvSampleCenter.x + uvOffsetSize;
-  data_[31] = uvSampleCenter.y + uvOffsetSize;
-  data_[32] = 1.f;
-  data_[33] = 1.f;
-  data_[34] = 1.f;
+  GLKMatrix3 fourth = GLKMatrix3Make(loupeCenter.x + (loupeSize * 0.5), loupeCenter.y + (loupeSize * 0.5), 0.f,
+                                     uvSampleCenter.x + uvOffsetSize, uvSampleCenter.y + uvOffsetSize, 1.f,
+                                     1.f, 1.f, 0.f);
+  [loupe setVertexData:fourth atIndex:3];
 }
 
-- (void)computeDataForSquare:(GLfloat *)trap
+- (void)computeDataForSquare:(BWMesh *)mesh
                  withTopLeft:(CGPoint)topLeft
                     topRight:(CGPoint)topRight
                   bottomLeft:(CGPoint)bottomLeft
@@ -360,27 +350,17 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   
 //  w0 = w1 = w2 = w3 = 1;
   
-  trap[0] = p3.x;
-  trap[1] = p3.y;
-  trap[5] = w3;
+  [mesh setVertex:GLKVector3Make(p3.x, p3.y, 0.f) atIndex:0];
+  [mesh setTexCoor0:GLKVector3Make(0.f, 0.f, w3) atIndex:0];
   
-  trap[6] = p2.x;
-  trap[7] = p2.y;
-  trap[9] = 1.f * w2;
-  trap[11] = w2;
+  [mesh setVertex:GLKVector3Make(p2.x, p2.y, 0.f) atIndex:1];
+  [mesh setTexCoor0:GLKVector3Make(1.f * w2, 0.f, w2) atIndex:1];
   
-  trap[12] = p0.x;
-  trap[13] = p0.y;
-  trap[16] = 1.f * w0;
-  trap[17] = w0;
+  [mesh setVertex:GLKVector3Make(p0.x, p0.y, 0.f) atIndex:2];
+  [mesh setTexCoor0:GLKVector3Make(0.f, 1.f * w0, w0) atIndex:2];
   
-  trap[18] = p1.x;
-  trap[19] = p1.y;
-  trap[21] = 1.f * w1;
-  trap[22] = 1.f * w1;
-  trap[23] = w1;
-  
-  
+  [mesh setVertex:GLKVector3Make(p1.x, p1.y, 0.f) atIndex:3];
+  [mesh setTexCoor0:GLKVector3Make(1.f * w1, 1.f * w1, w1) atIndex:3];
 }
 
 - (void)tearDownGL
@@ -431,52 +411,6 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
 //  bottomRightPosition = bottomrRight_.center;
   needsUpdate_ = YES;
 }
-
-- (GLfloat *)initBufferOfSize:(GLint)vertexCount twoTextureChannels:(BOOL)twoUVChannels {
-  GLint strideCount = twoUVChannels ? 9 : 6;
-  GLint strideByteSize = strideCount * sizeof(GLfloat);
-  
-  GLfloat *data = calloc(strideCount * vertexCount, sizeof(GLfloat));
-  
-  GLuint newVertexArray;
-  
-  glGenVertexArraysOES(1, &newVertexArray);
-  glBindVertexArrayOES(newVertexArray);
-  
-  GLuint newVertexBuffer;
-  
-  glGenBuffers(1, &newVertexBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, newVertexBuffer);
-  glBufferData(GL_ARRAY_BUFFER, strideByteSize * vertexCount, data, GL_DYNAMIC_DRAW);
-  
-  GLuint offset = 0;
-  glEnableVertexAttribArray(GLKVertexAttribPosition);
-  glVertexAttribPointer(GLKVertexAttribPosition, 3, GL_FLOAT, GL_FALSE, strideByteSize, (const void*)offset);
-  
-  offset += 3 * sizeof(GLfloat);
-  
-  glEnableVertexAttribArray(GLKVertexAttribTexCoord0);
-  glVertexAttribPointer(GLKVertexAttribTexCoord0, 3, GL_FLOAT, GL_FALSE, strideByteSize, (const void*)offset);
-  
-  if (twoUVChannels) {
-    offset += 3 * sizeof(GLfloat);
-    glEnableVertexAttribArray(GLKVertexAttribTexCoord1);
-    glVertexAttribPointer(GLKVertexAttribTexCoord1, 3, GL_FLOAT, GL_FALSE, strideByteSize, (const void*)offset);
-  }
-  
-  
-  BWMesh *normalMesh = [[BWMesh alloc] init];
-  normalMesh.vertexArray = newVertexArray;
-  normalMesh.vertexBuffer = newVertexBuffer;
-  normalMesh.vertexCount = vertexCount;
-  [debugGeometry_ addObject:normalMesh];
-  
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArrayOES(0);
-  return data;
-}
-
-
 
 - (void)loadTextureImage:(UIImage *)image {
   if (textureLoaded_) {
@@ -543,7 +477,7 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
 //                    bottomLeft:bottomLeft_.center
 //                   bottomRight:bottomrRight_.center];
     
-    [self computeDataForSquare:hData_ withTopLeft:CGPointMake(0, 0) topRight:CGPointMake(scaledImageSize.width, 0) bottomLeft:CGPointMake(0, scaledImageSize.height) bottomRight:CGPointMake(scaledImageSize.width, scaledImageSize.height)];
+    [self computeDataForSquare:debugGeometry_.lastObject withTopLeft:CGPointMake(0, 0) topRight:CGPointMake(scaledImageSize.width, 0) bottomLeft:CGPointMake(0, scaledImageSize.height) bottomRight:CGPointMake(scaledImageSize.width, scaledImageSize.height)];
     needsUpdate_ = NO;
   }
 }
@@ -558,19 +492,17 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   if (pauseUpdate_) {
     return;
   }
-  BWMesh *mesh = debugGeometry_.firstObject;
-  BWMesh *mesh2 = debugGeometry_[1];
+  BWMesh *loupe = debugGeometry_.firstObject;
+  BWMesh *square = debugGeometry_.lastObject;
   
   //Update Everything
   
-  
-  glBindBuffer(GL_ARRAY_BUFFER, mesh.vertexBuffer);
-  glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(GLfloat) * 36, data_);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  
-  glBindBuffer(GL_ARRAY_BUFFER, mesh2.vertexBuffer);
-  glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(GLfloat) * 24, hData_);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  if (loupe.needsUpdate) {
+    [loupe updateBuffer];
+  }
+  if (square.needsUpdate) {
+    [square updateBuffer];
+  }
   
   GLKMatrix4 projection = GLKMatrix4MakeOrtho(0, self.view.bounds.size.width, self.view.bounds.size.height, 0, 1, -1);
   projection = GLKMatrix4Translate(GLKMatrix4Scale(projection, hackScroller_.zoomScale, hackScroller_.zoomScale, 1), (-hackScroller_.contentOffset.x / hackScroller_.zoomScale), (-hackScroller_.contentOffset.y / hackScroller_.zoomScale), 0);
@@ -584,18 +516,18 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   }
   
   
-  BWShaderObject *debugShader = [shaders_ objectForKey:@"Shader"];
-  glBindVertexArrayOES(mesh2.vertexArray);
-  glUseProgram(debugShader.shaderProgram);
+  BWShader *debugShader = [shaders_ objectForKey:@"Shader"];
+  [square use];
+  [debugShader use];
+  [debugShader setUniformValue:@(textureLoaded_) forUniformNamed:@"hasTexture"];
+  [debugShader setUniformValue:[NSValue valueWithGLKMatrix4:GLKMatrix4Multiply(projection, GLKMatrix4Identity)] forUniformNamed:@"modelViewProjectionMatrix"];
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, square.vertexCount);
   
-  glUniform1i(debugShader.uniformHasTexture, textureLoaded_);
-  glUniformMatrix4fv(debugShader.uniformCameraProjectionMatrix, 1, 0, GLKMatrix4Multiply(projection, GLKMatrix4Identity).m);
-  glDrawArrays(GL_TRIANGLE_STRIP, 0, mesh2.vertexCount);
-  
-  glUniform1i(debugShader.uniformHasTexture, 0);
-  glUniformMatrix4fv(debugShader.uniformCameraProjectionMatrix, 1, 0, GLKMatrix4Multiply(projection, [self homographicMatrix]).m);
+  [debugShader setUniformValue:@(0) forUniformNamed:@"hasTexture"];
+  [debugShader setUniformValue:[NSValue valueWithGLKMatrix4:GLKMatrix4Multiply(projection, [self homographicMatrix])] forUniformNamed:@"modelViewProjectionMatrix"];
+
   glLineWidth(4.f);
-  glDrawArrays(GL_LINE_LOOP, 0, mesh2.vertexCount);
+  glDrawArrays(GL_LINE_LOOP, 0, square.vertexCount);
   
   if (drawOverlay_ && textureLoaded_) {
     GLKMatrix4 transHomography = [self transHomographicMatrix];
@@ -633,24 +565,21 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
     
     GLKMatrix4 projection2 = GLKMatrix4MakeOrtho(0, self.view.bounds.size.width, self.view.bounds.size.height * 0.5, -self.view.bounds.size.height * 0.5, 1, -1);
     GLKMatrix4 adjustedProjection = GLKMatrix4Translate(GLKMatrix4Scale(projection2, scalex, scaley, 1), offset.x, offset.y, 0);
-    glUniform1i(debugShader.uniformHasTexture, 1);
-    glUniformMatrix4fv(debugShader.uniformCameraProjectionMatrix, 1, 0, GLKMatrix4Multiply(adjustedProjection, transHomography).m);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, mesh2.vertexCount);
+    [debugShader setUniformValue:@(1) forUniformNamed:@"hasTexture"];
+    [debugShader setUniformValue:[NSValue valueWithGLKMatrix4:GLKMatrix4Multiply(adjustedProjection, transHomography)] forUniformNamed:@"modelViewProjectionMatrix"];
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, square.vertexCount);
   }
-  
   glBindVertexArrayOES(0);
   
   if (drawLoupe_ && textureLoaded_) {
-    BWShaderObject *circleShader = [shaders_ objectForKey:@"circleShader"];
-    glUseProgram(circleShader.shaderProgram);
-    glBindVertexArrayOES(mesh.vertexArray);
-    glUniform1i(circleShader.uniformHasTexture, 1);
-    glUniform1f(circleShader.uniformLight1, 0.04f);
-    glUniform4f(circleShader.uniformDiffuse, 0.7, 0.4, 0.f, 0.4);
-    glUniformMatrix4fv(debugShader.uniformCameraProjectionMatrix, 1, 0, projection.m);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, mesh.vertexCount);
-    
-    
+    BWShader *circleShader = [shaders_ objectForKey:@"circleShader"];
+    [circleShader use];
+    [loupe use];
+    [circleShader setUniformValue:@(1) forUniformNamed:@"hasTexture"];
+    [circleShader setUniformValue:[NSValue valueWithGLKMatrix4:projection] forUniformNamed:@"modelViewProjectionMatrix"];
+    [circleShader setUniformValue:@(0.04) forUniformNamed:@"circleRadius"];
+    [circleShader setUniformValue:[NSValue valueWithGLKVector4:GLKVector4Make(0.7, 0.4, 0.0, 0.4)] forUniformNamed:@"diffuseColor"];
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, loupe.vertexCount);
   }
   
   glBindTexture(GL_TEXTURE_2D, 0);
@@ -856,162 +785,6 @@ GLKMatrix3 multmm(GLKMatrix3 a, GLKMatrix3 b) { // multiply two matrices
     }
   }
   return c;
-}
-
-#pragma mark -  OpenGL ES 2 shader compilation
-
-- (BOOL)loadShaderNamed:(NSString *)name withVertexAttributes:(NSDictionary *)attributes andUniforms:(NSDictionary *)uniforms {
-  GLuint vertShader, fragShader;
-  NSString *vertShaderPathname, *fragShaderPathname;
-  
-  BWShaderObject *newShader = [[BWShaderObject alloc] init];
-  // Create shader program.
-  newShader.shaderProgram = glCreateProgram();
-  
-  // Create and compile vertex shader.
-  vertShaderPathname = [[NSBundle mainBundle] pathForResource:name ofType:@"vsh"];
-  if (![self compileShader:&vertShader type:GL_VERTEX_SHADER file:vertShaderPathname]) {
-    NSLog(@"Failed to compile vertex shader");
-    return NO;
-  }
-  
-  // Create and compile fragment shader.
-  fragShaderPathname = [[NSBundle mainBundle] pathForResource:name ofType:@"fsh"];
-  if (![self compileShader:&fragShader type:GL_FRAGMENT_SHADER file:fragShaderPathname]) {
-    NSLog(@"Failed to compile fragment shader");
-    return NO;
-  }
-  
-  // Attach vertex shader to program.
-  glAttachShader(newShader.shaderProgram, vertShader);
-  
-  // Attach fragment shader to program.
-  glAttachShader(newShader.shaderProgram, fragShader);
-  
-  // Bind attribute locations.
-  // This needs to be done prior to linking.
-  for (NSString *attribue in attributes) {
-    glBindAttribLocation(newShader.shaderProgram, [[attributes valueForKey:attribue] integerValue], [attribue UTF8String]);
-  }
-  
-  
-  // Link program.
-  if (![self linkProgram:newShader.shaderProgram]) {
-    NSLog(@"Failed to link program: %d", newShader.shaderProgram);
-    
-    if (vertShader) {
-      glDeleteShader(vertShader);
-      vertShader = 0;
-    }
-    if (fragShader) {
-      glDeleteShader(fragShader);
-      fragShader = 0;
-    }
-    if (newShader.shaderProgram) {
-      glDeleteProgram(newShader.shaderProgram);
-      newShader.shaderProgram = 0;
-    }
-    
-    return NO;
-  }
-  
-  // Get uniform locations.
-  
-  for (NSString *uniformKey in uniforms.allKeys) {
-    int uniform = glGetUniformLocation(newShader.shaderProgram, [uniformKey UTF8String]);
-    [newShader setValue:@(uniform) forKey:[uniforms objectForKey:uniformKey]];
-  }
-  
-  if (vertShader) {
-    glDetachShader(newShader.shaderProgram, vertShader);
-    glDeleteShader(vertShader);
-  }
-  if (fragShader) {
-    glDetachShader(newShader.shaderProgram, fragShader);
-    glDeleteShader(fragShader);
-  }
-  [shaders_ setObject:newShader forKey:name];
-  return YES;
-}
-
-- (BOOL)compileShader:(GLuint *)shader type:(GLenum)type file:(NSString *)file
-{
-    GLint status;
-    const GLchar *source;
-  
-    source = (GLchar *)[[NSString stringWithContentsOfFile:file encoding:NSUTF8StringEncoding error:nil] UTF8String];
-    if (!source) {
-        NSLog(@"Failed to load vertex shader");
-        return NO;
-    }
-    
-    *shader = glCreateShader(type);
-    glShaderSource(*shader, 1, &source, NULL);
-    glCompileShader(*shader);
-    
-#if defined(DEBUG)
-    GLint logLength;
-    glGetShaderiv(*shader, GL_INFO_LOG_LENGTH, &logLength);
-    if (logLength > 0) {
-        GLchar *log = (GLchar *)malloc(logLength);
-        glGetShaderInfoLog(*shader, logLength, &logLength, log);
-        NSLog(@"Shader compile log:\n%s", log);
-        free(log);
-    }
-#endif
-    
-    glGetShaderiv(*shader, GL_COMPILE_STATUS, &status);
-    if (status == 0) {
-        glDeleteShader(*shader);
-        return NO;
-    }
-    
-    return YES;
-}
-
-- (BOOL)linkProgram:(GLuint)prog
-{
-    GLint status;
-    glLinkProgram(prog);
-    
-#if defined(DEBUG)
-    GLint logLength;
-    glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &logLength);
-    if (logLength > 0) {
-        GLchar *log = (GLchar *)malloc(logLength);
-        glGetProgramInfoLog(prog, logLength, &logLength, log);
-        NSLog(@"Program link log:\n%s", log);
-        free(log);
-    }
-#endif
-    
-    glGetProgramiv(prog, GL_LINK_STATUS, &status);
-    if (status == 0) {
-        return NO;
-    }
-    
-    return YES;
-}
-
-- (BOOL)validateProgram:(GLuint)prog
-{
-    GLint logLength, status;
-    
-    glValidateProgram(prog);
-    glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &logLength);
-    if (logLength > 0) {
-        GLchar *log = (GLchar *)malloc(logLength);
-        glGetProgramInfoLog(prog, logLength, &logLength, log);
-        NSLog(@"Program validate log:\n%s", log);
-        free(log);
-    }
-    
-    glGetProgramiv(prog, GL_VALIDATE_STATUS, &status);
-    if (status == 0) {
-        return NO;
-    }
-    
-    return YES;
 }
 
 @end

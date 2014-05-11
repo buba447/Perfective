@@ -9,8 +9,23 @@
 #import <Foundation/Foundation.h>
 
 @interface BWMesh : NSObject
-@property (nonatomic, assign) GLuint vertexArray;
-@property (nonatomic, assign) GLuint vertexBuffer;
-@property (nonatomic, assign) int vertexCount;
-@property (nonatomic, retain) NSString *name;
+
+@property (nonatomic, readonly) GLint vertexCount;
+@property (nonatomic, readonly) GLuint vertexArray;
+@property (nonatomic, readonly) GLuint vertexBuffer;
+@property (nonatomic, readonly) BOOL needsUpdate;
+
+- (id)initWithNumberOfVertices:(GLint)vertexCount;
+
+- (void)updateBuffer;
+- (void)use;
+
+- (void)setVertex:(GLKVector3)vertex atIndex:(GLint)index;
+- (void)setTexCoor0:(GLKVector3)textCoor atIndex:(GLint)index;
+- (void)setTexCoor1:(GLKVector3)textCoor atIndex:(GLint)index;
+- (void)setVertexData:(GLKMatrix3)vertexData atIndex:(GLint)index;
+
+- (GLKVector3)vertexAtIndex:(GLint)index;
+- (GLKVector3)texCoor0AtIndex:(GLint)index;
+- (GLKVector3)texCoor1AtIndex:(GLint)index;
 @end
