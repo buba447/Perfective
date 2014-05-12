@@ -8,14 +8,13 @@
 
 #import "BWShader.h"
 
-@implementation BWShaderUniform
-
-@end
+//@implementation BWShaderUniform
+//
+//@end
 
 @implementation BWShader {
   GLuint programID_;
-  NSDictionary *uniforms_;
-  
+  NSDictionary *uniformLocations_;
 }
 
 - (id)initWithShaderNamed:(NSString *)shaderName {
@@ -29,98 +28,6 @@
 
 - (void)use {
   glUseProgram(programID_);
-}
-
-- (NSDictionary *)generateUniforms {
-  NSMutableDictionary *uniforms = [NSMutableDictionary dictionary];
-  for (BWShaderUniform *uniform in uniforms_) {
-    BWShaderUniform *newUniform = [[BWShaderUniform alloc] init];
-    newUniform.name = uniform.name;
-    newUniform.type = uniform.type;
-    newUniform.location = uniform.location;
-    [uniforms setObject:uniform forKey:uniform.name];
-  }
-  return uniforms;
-}
-
-- (void)loadUniforms:(NSMutableDictionary *)uniforms {
-  for (BWShaderUniform *uniform in uniforms.allValues) {
-    [self loadUniform:uniform];
-  }
-}
-
-- (void)setUniformValue:(NSValue *)value forUniformNamed:(NSString *)uniform {
-  BWShaderUniform *uObject = [uniforms_ objectForKey:uniform];
-  uObject.value = value;
-  [self loadUniform:uObject];
-  uObject.value = nil;
-}
-
-- (void)loadUniform:(BWShaderUniform *)uniform {
-  if (!uniform.value) {
-    return;
-  }
-  switch (uniform.type) {
-    case BWUniformTypeFloat: {
-      glUniform1f(uniform.location, (GLfloat)[(NSNumber *)uniform.value floatValue]);
-      break;
-    }
-    case BWUniformTypeFloatVec2: {
-      GLKVector2 value = [uniform.value vector2Value];
-      glUniform2f(uniform.location, value.x, value.y);
-      break;
-    }
-    case BWUniformTypeFloatVec3: {
-      GLKVector3 value = [uniform.value vector3Value];
-      glUniform3f(uniform.location, value.x, value.y, value.z);
-      break;
-    }
-    case BWUniformTypeFloatVec4: {
-      GLKVector4 value = [uniform.value vector4Value];
-      glUniform4f(uniform.location, value.x, value.y, value.z, value.w);
-      break;
-    }
-    case BWUniformTypeBool:
-    case BWUniformTypeInt: {
-      glUniform1i(uniform.location, (GLint)[(NSNumber *)uniform.value integerValue]);
-      break;
-    }
-    case BWUniformTypeBoolVec2:
-    case BWUniformTypeIntVec2: {
-      GLKVector2 value = [uniform.value vector2Value];
-      glUniform2i(uniform.location, (GLint)value.x, (GLint)value.y);
-      break;
-    }
-    case BWUniformTypeBoolVec3:
-    case BWUniformTypeIntVec3: {
-      GLKVector3 value = [uniform.value vector3Value];
-      glUniform3i(uniform.location, (GLint)value.x, (GLint)value.y, (GLint)value.z);
-      break;
-    }
-    case BWUniformTypeBoolVec4:
-    case BWUniformTypeIntVec4: {
-      GLKVector4 value = [uniform.value vector4Value];
-      glUniform4i(uniform.location, (GLint)value.x, (GLint)value.y, (GLint)value.z, (GLint)value.w);
-      break;
-    }
-    case BWUniformTypeFloatMatrix2: {
-      GLKMatrix2 value = [uniform.value matrix2Value];
-      glUniformMatrix2fv(uniform.location, 1, 0, value.m);
-      break;
-    }
-    case BWUniformTypeFloatMatrix3: {
-      GLKMatrix3 value = [uniform.value matrix3Value];
-      glUniformMatrix3fv(uniform.location, 1, 0, value.m);
-      break;
-    }
-    case BWUniformTypeFloatMatrix4: {
-      GLKMatrix4 value = [uniform.value matrix4Value];
-      glUniformMatrix4fv(uniform.location, 1, 0, value.m);
-      break;
-    }
-    default:
-      break;
-  }
 }
 
 - (BOOL)loadShaderNamed:(NSString *)name {
@@ -191,68 +98,9 @@
     
     GLuint uniformLocation = glGetUniformLocation(programID_, uniformName);
     
-    BWShaderUniform *uniform = [[BWShaderUniform alloc] init];
-    uniform.name = [NSString stringWithUTF8String:uniformName];
-    uniform.location = uniformLocation;
-    switch (type) {
-      case GL_FLOAT:
-        uniform.type = BWUniformTypeFloat;
-        break;
-      case GL_FLOAT_VEC2:
-        uniform.type = BWUniformTypeFloatVec2;
-        break;
-      case GL_FLOAT_VEC3:
-        uniform.type = BWUniformTypeFloatVec3;
-        break;
-      case GL_FLOAT_VEC4:
-        uniform.type = BWUniformTypeFloatVec4;
-        break;
-      case GL_INT:
-        uniform.type = BWUniformTypeInt;
-        break;
-      case GL_INT_VEC2:
-        uniform.type = BWUniformTypeIntVec2;
-        break;
-      case GL_INT_VEC3:
-        uniform.type = BWUniformTypeIntVec3;
-        break;
-      case GL_INT_VEC4:
-        uniform.type = BWUniformTypeIntVec4;
-        break;
-      case GL_BOOL:
-        uniform.type = BWUniformTypeBool;
-        break;
-      case GL_BOOL_VEC2:
-        uniform.type = BWUniformTypeBoolVec2;
-        break;
-      case GL_BOOL_VEC3:
-        uniform.type = BWUniformTypeBoolVec3;
-        break;
-      case GL_BOOL_VEC4:
-        uniform.type = BWUniformTypeBoolVec4;
-        break;
-      case GL_FLOAT_MAT2:
-        uniform.type = BWUniformTypeFloatMatrix2;
-        break;
-      case GL_FLOAT_MAT3:
-        uniform.type = BWUniformTypeFloatMatrix3;
-        break;
-      case GL_FLOAT_MAT4:
-        uniform.type = BWUniformTypeFloatMatrix4;
-        break;
-      case GL_SAMPLER_2D:
-        uniform.type = BWUniformTypeSampler2D;
-        break;
-      case GL_SAMPLER_CUBE:
-        uniform.type = BWUniformTypeSamplerCube;
-        break;
-      default:
-        uniform.type = GL_ZERO;
-        break;
-    }
-    [uniforms setObject:uniform forKey:uniform.name];
+    [uniforms setObject:@(uniformLocation) forKey:[NSString stringWithUTF8String:uniformName]];
   }
-  uniforms_ = uniforms;
+  uniformLocations_ = uniforms;
   if (vertShader) {
     glDetachShader(programID_, vertShader);
     glDeleteShader(vertShader);
@@ -262,6 +110,70 @@
     glDeleteShader(fragShader);
   }
   return YES;
+}
+
+- (NSArray*)uniformNames {
+  return uniformLocations_.allKeys;
+}
+
+- (void)setUniform:(NSString *)uniform withVector2f:(GLKVector2)vector {
+  GLint location = (GLint)[[uniformLocations_ objectForKey:uniform] integerValue];
+  glUniform2f(location, vector.x, vector.y);
+}
+
+- (void)setUniform:(NSString *)uniform withVector3f:(GLKVector3)vector {
+  GLint location = (GLint)[[uniformLocations_ objectForKey:uniform] integerValue];
+  glUniform3f(location, vector.x, vector.y, vector.z);
+}
+
+- (void)setUniform:(NSString *)uniform withVector4f:(GLKVector4)vector {
+  GLint location = (GLint)[[uniformLocations_ objectForKey:uniform] integerValue];
+  glUniform4f(location, vector.x, vector.y, vector.z, vector.w);
+}
+
+- (void)setUniform:(NSString *)uniform withVector2i:(GLKVector2)vector {
+  GLint location = (GLint)[[uniformLocations_ objectForKey:uniform] integerValue];
+  glUniform2i(location, (GLint)vector.x, (GLint)vector.y);
+}
+
+- (void)setUniform:(NSString *)uniform withVector3i:(GLKVector3)vector {
+  GLint location = (GLint)[[uniformLocations_ objectForKey:uniform] integerValue];
+  glUniform3i(location, (GLint)vector.x, (GLint)vector.y, (GLint)vector.z);
+}
+
+- (void)setUniform:(NSString *)uniform withVector4i:(GLKVector4)vector {
+  GLint location = (GLint)[[uniformLocations_ objectForKey:uniform] integerValue];
+  glUniform4i(location, (GLint)vector.x, (GLint)vector.y, (GLint)vector.z, (GLint)vector.w);
+}
+
+- (void)setUniform:(NSString *)uniform withMatrix2:(GLKMatrix2)matrix {
+  GLint location = (GLint)[[uniformLocations_ objectForKey:uniform] integerValue];
+  glUniformMatrix2fv(location, 1, 0, matrix.m);
+}
+
+- (void)setUniform:(NSString *)uniform withMatrix3:(GLKMatrix3)matrix {
+  GLint location = (GLint)[[uniformLocations_ objectForKey:uniform] integerValue];
+  glUniformMatrix3fv(location, 1, 0, matrix.m);
+}
+
+- (void)setUniform:(NSString *)uniform withMatrix4:(GLKMatrix4)matrix {
+  GLint location = (GLint)[[uniformLocations_ objectForKey:uniform] integerValue];
+  glUniformMatrix4fv(location, 1, 0, matrix.m);
+}
+
+- (void)setUniform:(NSString *)uniform withFloat:(GLfloat)floatValue {
+  GLint location = (GLint)[[uniformLocations_ objectForKey:uniform] integerValue];
+  glUniform1f(location, floatValue);
+}
+
+- (void)setUniform:(NSString *)uniform withInt:(GLint)intValue {
+  GLint location = (GLint)[[uniformLocations_ objectForKey:uniform] integerValue];
+  glUniform1i(location, intValue);
+}
+
+- (void)setUniform:(NSString *)uniform withBool:(BOOL)boolValue {
+  GLint location = (GLint)[[uniformLocations_ objectForKey:uniform] integerValue];
+  glUniform1i(location, (GLint)boolValue);
 }
 
 - (BOOL)compileShader:(GLuint *)shader type:(GLenum)type file:(NSString *)file

@@ -6,6 +6,8 @@
 //  Copyright (c) 2013 Brandon Withrow. All rights reserved.
 //
 
+//TODO Convert to GLELEMENTS and add facemaking methods.
+
 #import <Foundation/Foundation.h>
 
 @interface BWMesh : NSObject
@@ -28,4 +30,6 @@
 - (GLKVector3)vertexAtIndex:(GLint)index;
 - (GLKVector3)texCoor0AtIndex:(GLint)index;
 - (GLKVector3)texCoor1AtIndex:(GLint)index;
+
+- (void)logBuffer;
 @end

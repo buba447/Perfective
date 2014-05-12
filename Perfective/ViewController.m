@@ -9,14 +9,12 @@
 #import "ViewController.h"
 #import "BWMesh.h"
 #import "BWShader.h"
-
+#import "BWModel.h"
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
 @interface ViewController () <UIImagePickerControllerDelegate, UINavigationControllerDelegate, UIScrollViewDelegate> {
-  GLuint _program;
-  NSMutableArray *debugGeometry_;
-  NSMutableDictionary *shaders_;
+
   UIView *topLeft_;
   UIView *topRight_;
   UIView *bottomLeft_;
@@ -27,13 +25,17 @@
   CGPoint bottomRightPosition;
   CGPoint topRightPosition;
   CGSize scaledImageSize;
+  
+  BWModel *loupeModel_;
+  BWModel *pictureModel_;
+  BWModel *xformedPictureModel_;
+  BWModel *overLayModel_;
+  
   BOOL drawOverlay_;
   BOOL drawLoupe_;
   GLuint _texture;
   BOOL textureLoaded_;
   BOOL pauseUpdate_;
-  UIScrollView *hackScroller_;
-  UIView *zoomView_;
 }
 
 @property (strong, nonatomic) EAGLContext *context;
@@ -41,9 +43,6 @@
 - (void)setupGL;
 - (void)tearDownGL;
 
-- (BOOL)compileShader:(GLuint *)shader type:(GLenum)type file:(NSString *)file;
-- (BOOL)linkProgram:(GLuint)prog;
-- (BOOL)validateProgram:(GLuint)prog;
 @end
 
 @implementation ViewController
@@ -56,8 +55,6 @@
   drawOverlay_ = YES;
   drawLoupe_ = NO;
   [super viewDidLoad];
-  shaders_ = [[NSMutableDictionary alloc] init];
-  debugGeometry_ = [NSMutableArray array];
   textureLoaded_ = NO;
   self.context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
 
@@ -66,22 +63,7 @@
   scaledImageSize.height = self.view.bounds.size.height * 0.5;
 
   pauseUpdate_ = NO;
-  
   needsUpdate_ = YES;
-  hackScroller_ = [[UIScrollView alloc] initWithFrame:self.view.bounds];
-  hackScroller_.maximumZoomScale = 2;
-  hackScroller_.alwaysBounceHorizontal = YES;
-  hackScroller_.alwaysBounceVertical = YES;
-  hackScroller_.scrollEnabled = NO;
-  hackScroller_.contentSize = self.view.bounds.size;
-  hackScroller_.delegate = self;
-  [self.view addSubview:hackScroller_];
-  zoomView_ = [[UIView alloc] initWithFrame:self.view.bounds];
-  [hackScroller_ addSubview:zoomView_];
-  
-  UITapGestureRecognizer *tappy = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTap:)];
-  tappy.numberOfTapsRequired = 2;
-  [zoomView_ addGestureRecognizer:tappy];
   
   topLeft_ = [self setupCornerView];
   topLeft_.center = CGPointMake(44, 44);
@@ -119,20 +101,6 @@
   NSLog(@"");
 }
 
-- (void)handleDoubleTap:(UITapGestureRecognizer *)tap {
-  CGFloat zoomScale;
-  if (hackScroller_.zoomScale > 1) {
-    zoomScale = 1;
-  } else {
-    zoomScale = hackScroller_.maximumZoomScale;
-  }
-  [hackScroller_ setZoomScale:zoomScale animated:YES];
-}
-
-- (UIView*)viewForZoomingInScrollView:(UIScrollView *)scrollView {
-  return [scrollView.subviews objectAtIndex:0];
-}
-
 - (void)pickImage {
   pauseUpdate_ = YES;
   UIImagePickerController *imagePicker = [[UIImagePickerController alloc] init];
@@ -162,7 +130,7 @@
   view.backgroundColor = [UIColor colorWithWhite:1 alpha:0.3];
   UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handPan:)];
   [view addGestureRecognizer:pan];
-  [zoomView_ addSubview:view];
+  [self.view addSubview:view];
   return view;
 }
 
@@ -170,47 +138,15 @@
   panGesture.view.center = [panGesture locationInView:self.view];
   [self computeLoupeDateFromPoint:panGesture.view.center];
   drawLoupe_ = YES;
+  needsUpdate_ = YES;
   if (panGesture.state == UIGestureRecognizerStateEnded) {
     drawLoupe_ = NO;
   }
 }
 
-- (void)dealloc
-{    
-    [self tearDownGL];
-    
-    if ([EAGLContext currentContext] == self.context) {
-        [EAGLContext setCurrentContext:nil];
-    }
-}
-
-- (void)didReceiveMemoryWarning
-{
-    [super didReceiveMemoryWarning];
-
-    if ([self isViewLoaded] && ([[self view] window] == nil)) {
-        self.view = nil;
-        
-        [self tearDownGL];
-        
-        if ([EAGLContext currentContext] == self.context) {
-            [EAGLContext setCurrentContext:nil];
-        }
-        self.context = nil;
-    }
-
-    // Dispose of any resources that can be recreated.
-}
-
 - (void)setupGL {
   
   [EAGLContext setCurrentContext:self.context];
-
-  BWShader *shader = [[BWShader alloc] initWithShaderNamed:@"Shader"];
-  [shaders_ setObject:shader forKey:@"Shader"];
-  
-  BWShader *shader2 = [[BWShader alloc] initWithShaderNamed:@"circleShader"];
-  [shaders_ setObject:shader2 forKey:@"circleShader"];
 
   [self loadTextureImage:[UIImage imageNamed:@"barn2.jpg"]];
 //  glEnable(GL_DEPTH_TEST);
@@ -221,42 +157,29 @@
   glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glShadeModel (GL_SMOOTH);
   
-  BWMesh *mesh = [[BWMesh alloc] initWithNumberOfVertices:4];
-  BWMesh *mesh2 = [[BWMesh alloc] initWithNumberOfVertices:4];
-  [debugGeometry_ addObject:mesh];
-  [debugGeometry_ addObject:mesh2];
-}
-
-- (CGPoint)intersectionOfLineFrom:(CGPoint)p1 to:(CGPoint)p2 withLineFrom:(CGPoint)p3 to:(CGPoint)p4
-{
-  CGFloat d = (p2.x - p1.x)*(p4.y - p3.y) - (p2.y - p1.y)*(p4.x - p3.x);
-  if (d == 0)
-    return CGPointZero; // parallel lines
-  CGFloat u = ((p3.x - p1.x)*(p4.y - p3.y) - (p3.y - p1.y)*(p4.x - p3.x))/d;
-  CGFloat v = ((p3.x - p1.x)*(p2.y - p1.y) - (p3.y - p1.y)*(p2.x - p1.x))/d;
-  if (u < 0.0 || u > 1.0)
-    return CGPointZero; // intersection point not between p1 and p2
-  if (v < 0.0 || v > 1.0)
-    return CGPointZero; // intersection point not between p3 and p4
-  CGPoint intersection;
-  intersection.x = p1.x + u * (p2.x - p1.x);
-  intersection.y = p1.y + u * (p2.y - p1.y);
+  BWShader *pictureShader = [[BWShader alloc] initWithShaderNamed:@"Shader"];
   
-  return intersection;
-}
+  BWShader *loupeShader = [[BWShader alloc] initWithShaderNamed:@"circleShader"];
+  
+  BWMesh *loupeMesh = [[BWMesh alloc] initWithNumberOfVertices:4];
+  BWMesh *pictureMesh = [[BWMesh alloc] initWithNumberOfVertices:4];
+  [self computeDataForSquare:pictureMesh withTopLeft:CGPointMake(0, 0) topRight:CGPointMake(scaledImageSize.width, 0) bottomLeft:CGPointMake(0, scaledImageSize.height) bottomRight:CGPointMake(scaledImageSize.width, scaledImageSize.height)];
 
-CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
-  CGFloat dx = point2.x - point1.x;
-  CGFloat dy = point2.y - point1.y;
-  return sqrt(dx*dx + dy*dy );
-};
-
-- (void)logBuffer:(CGFloat *)trap {
-  NSMutableArray *values = [NSMutableArray array];
-  for (int i = 0; i < 24; i ++) {
-    [values addObject:@(trap[i])];
-  }
-  NSLog(@"\r\rTrap [ %@ ]", [values componentsJoinedByString:@", "]);
+  loupeModel_ = [[BWModel alloc] init];
+  loupeModel_.shader = loupeShader;
+  loupeModel_.mesh = loupeMesh;
+  
+  pictureModel_ = [[BWModel alloc] init];
+  pictureModel_.shader = pictureShader;
+  pictureModel_.mesh = pictureMesh;
+  
+  overLayModel_ = [[BWModel alloc] init];
+  overLayModel_.shader = pictureShader;
+  overLayModel_.mesh = pictureMesh;
+  xformedPictureModel_ = [[BWModel alloc] init];
+  xformedPictureModel_.shader = pictureShader;
+  xformedPictureModel_.mesh = pictureMesh;
+  
 }
 
 - (void)computeLoupeDateFromPoint:(CGPoint)point {
@@ -288,7 +211,7 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   CGPoint centerOfSample = point;
   CGPoint uvSampleCenter = CGPointMake(centerOfSample.x / scaledImageSize.width, centerOfSample.y / scaledImageSize.height);
   CGFloat uvOffsetSize = ((loupeSize / scaledImageSize.width) / zoomScale) * 0.5;
-  BWMesh *loupe = debugGeometry_.firstObject;
+
   
   //              x  y   z    u   v   q    u   v   q
   //top left      0, 1,  2 -  3,  4,  5 -  6,  7,  8
@@ -296,7 +219,7 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   GLKMatrix3 first = GLKMatrix3Make(loupeCenter.x - (loupeSize * 0.5), loupeCenter.y - (loupeSize * 0.5), 0,
                                     uvSampleCenter.x - uvOffsetSize, uvSampleCenter.y - uvOffsetSize, 1.f,
                                     0, 0, 0);
-  [loupe setVertexData:first atIndex:0];
+  [loupeModel_.mesh setVertexData:first atIndex:0];
   
   //              x  y   z    u   v   q    u   v   q
   //top right     9, 10, 11 - 12, 13, 14 - 15, 16, 17
@@ -304,7 +227,7 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   GLKMatrix3 second = GLKMatrix3Make(loupeCenter.x + (loupeSize * 0.5), loupeCenter.y - (loupeSize * 0.5), 0.f,
                                      uvSampleCenter.x + uvOffsetSize, uvSampleCenter.y - uvOffsetSize, 1.f,
                                      1.f, 0.f, 0.f);
-  [loupe setVertexData:second atIndex:1];
+  [loupeModel_.mesh setVertexData:second atIndex:1];
   
   //              x   y   z    u   v   q    u   v   q
   //bottom left   18, 19, 20 - 21, 22, 23 - 24, 25, 26
@@ -313,14 +236,14 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
   GLKMatrix3 third = GLKMatrix3Make(loupeCenter.x - (loupeSize * 0.5), loupeCenter.y + (loupeSize * 0.5), 0.f,
                                     uvSampleCenter.x - uvOffsetSize, uvSampleCenter.y + uvOffsetSize, 1.f,
                                     0.f, 1.f, 0.f);
-  [loupe setVertexData:third atIndex:2];
+  [loupeModel_.mesh setVertexData:third atIndex:2];
   
   //              x   y   z    u   v   q    u   v   q
   //bottom right  27, 28, 29 - 30, 31, 32 - 33, 34, 35
   GLKMatrix3 fourth = GLKMatrix3Make(loupeCenter.x + (loupeSize * 0.5), loupeCenter.y + (loupeSize * 0.5), 0.f,
                                      uvSampleCenter.x + uvOffsetSize, uvSampleCenter.y + uvOffsetSize, 1.f,
                                      1.f, 1.f, 0.f);
-  [loupe setVertexData:fourth atIndex:3];
+  [loupeModel_.mesh setVertexData:fourth atIndex:3];
 }
 
 - (void)computeDataForSquare:(BWMesh *)mesh
@@ -329,86 +252,23 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
                   bottomLeft:(CGPoint)bottomLeft
                  bottomRight:(CGPoint)bottomRight{
 
-  CGPoint p0, p1,p2, p3;
-  p0 = bottomLeft; // bottom left
-  p1 = bottomRight; // bottom right
-  p2 = topRight; // top right
-  p3 = topLeft; // top left
-  CGPoint center = [self intersectionOfLineFrom:p0 to:p2 withLineFrom:p1 to:p3];
+  GLKVector4 w = QuadrilateralQForPoints(topLeft, topRight, bottomLeft, bottomRight);
   
-  CGFloat d0, d1, d2, d3;
-  d0 = DistanceBetweenTwoPoints(p0, center);
-  d1 = DistanceBetweenTwoPoints(p1, center);
-  d2 = DistanceBetweenTwoPoints(p2, center);
-  d3 = DistanceBetweenTwoPoints(p3, center);
+  [mesh setVertex:GLKVector3Make(topLeft.x, topLeft.y, 0.f) atIndex:0];
+  [mesh setTexCoor0:GLKVector3Make(0.f, 0.f, 1.f / w.x) atIndex:0];
   
-  CGFloat w0, w1, w2, w3;
-  w0 = (d0 + d2) / d2;
-  w1 = (d1 + d3) / d3;
-  w2 = (d2 + d0) / d0;
-  w3 = (d3 + d1) / d1;
+  [mesh setVertex:GLKVector3Make(topRight.x, topRight.y, 0.f) atIndex:1];
+  [mesh setTexCoor0:GLKVector3Make(1.f * w.y, 0.f, 1.f / w.y) atIndex:1];
   
-//  w0 = w1 = w2 = w3 = 1;
+  [mesh setVertex:GLKVector3Make(bottomLeft.x, bottomLeft.y, 0.f) atIndex:2];
+  [mesh setTexCoor0:GLKVector3Make(0.f, 1.f * w.z, 1.f / w.z) atIndex:2];
   
-  [mesh setVertex:GLKVector3Make(p3.x, p3.y, 0.f) atIndex:0];
-  [mesh setTexCoor0:GLKVector3Make(0.f, 0.f, w3) atIndex:0];
-  
-  [mesh setVertex:GLKVector3Make(p2.x, p2.y, 0.f) atIndex:1];
-  [mesh setTexCoor0:GLKVector3Make(1.f * w2, 0.f, w2) atIndex:1];
-  
-  [mesh setVertex:GLKVector3Make(p0.x, p0.y, 0.f) atIndex:2];
-  [mesh setTexCoor0:GLKVector3Make(0.f, 1.f * w0, w0) atIndex:2];
-  
-  [mesh setVertex:GLKVector3Make(p1.x, p1.y, 0.f) atIndex:3];
-  [mesh setTexCoor0:GLKVector3Make(1.f * w1, 1.f * w1, w1) atIndex:3];
-}
-
-- (void)tearDownGL
-{
-    [EAGLContext setCurrentContext:self.context];
-
-    
-    if (_program) {
-        glDeleteProgram(_program);
-        _program = 0;
-    }
-}
-
-- (CGRect)boundingBoxWithTopLeft:(CGPoint)topLeft
-                        topRight:(CGPoint)topRight
-                      bottomLeft:(CGPoint)bottomLeft
-                     bottomRight:(CGPoint)bottomRight {
-  CGRect boundingBox = CGRectZero;
-  boundingBox.origin.x = topLeft.x < bottomLeft.x ? topLeft.x : bottomLeft.x;
-  boundingBox.origin.y = topLeft.y < topRight.y ? topLeft.y : topRight.y;
-  
-  boundingBox.size.width  = topRight.x > bottomRight.x ? topRight.x : bottomRight.x;
-  boundingBox.size.height  = bottomLeft.y > bottomRight.y ? bottomLeft.y : bottomRight.y;
-
-  boundingBox.size.width -= boundingBox.origin.x;
-  boundingBox.size.height -= boundingBox.origin.y;
-  
-  return boundingBox;
-  
+  [mesh setVertex:GLKVector3Make(bottomRight.x, bottomRight.y, 0.f) atIndex:3];
+  [mesh setTexCoor0:GLKVector3Make(1.f * w.w, 1.f * w.w, 1.f / w.w) atIndex:3];
 }
 
 - (void)viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
-  
-  
-  CGRect bountingBox = [self boundingBoxWithTopLeft:topLeft_.center topRight:topRight_.center bottomLeft:bottomLeft_.center bottomRight:bottomrRight_.center];
-  CGPoint groupCenter = CGPointMake(CGRectGetMidX(bountingBox), CGRectGetMidY(bountingBox));
-
-//  CGPoint offset = CGPointMake((self.view.bounds.size.width / 2) - groupCenter.x, (self.view.bounds.size.height / 2) - groupCenter.y);
-  
-//  topLeft_.center = CGPointMake(topLeft_.center.x + offset.x, topLeft_.center.y + offset.y);
-//  bottomLeft_.center = CGPointMake(bottomLeft_.center.x + offset.x, bottomLeft_.center.y + offset.y);
-//  topRight_.center = CGPointMake(topRight_.center.x + offset.x, topRight_.center.y + offset.y);
-//  bottomrRight_.center = CGPointMake(bottomrRight_.center.x + offset.x, bottomrRight_.center.y + offset.y);
-//  topLeftPosition = topLeft_.center;
-//  topRightPosition = topRight_.center;
-//  bottomLeftPosition = bottomLeft_.center;
-//  bottomRightPosition = bottomrRight_.center;
   needsUpdate_ = YES;
 }
 
@@ -471,66 +331,14 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
 
 - (void)update {
   if (needsUpdate_) {
-//    [self computeDataForSquare:data_
-//                   withTopLeft:topLeft_.center
-//                      topRight:topRight_.center
-//                    bottomLeft:bottomLeft_.center
-//                   bottomRight:bottomrRight_.center];
+    GLKMatrix4 projection = GLKMatrix4MakeOrtho(0, self.view.bounds.size.width, self.view.bounds.size.height, 0, 1, -1);
+    pictureModel_.projection = projection;
+    pictureModel_.transform = GLKMatrix4Identity;
     
-    [self computeDataForSquare:debugGeometry_.lastObject withTopLeft:CGPointMake(0, 0) topRight:CGPointMake(scaledImageSize.width, 0) bottomLeft:CGPointMake(0, scaledImageSize.height) bottomRight:CGPointMake(scaledImageSize.width, scaledImageSize.height)];
-    needsUpdate_ = NO;
-  }
-}
-
-- (void)setNeedsGLKDisplay {
-  [(GLKView *)self.view display];
-}
-
-
-- (void)glkView:(GLKView *)view drawInRect:(CGRect)rect
-{
-  if (pauseUpdate_) {
-    return;
-  }
-  BWMesh *loupe = debugGeometry_.firstObject;
-  BWMesh *square = debugGeometry_.lastObject;
-  
-  //Update Everything
-  
-  if (loupe.needsUpdate) {
-    [loupe updateBuffer];
-  }
-  if (square.needsUpdate) {
-    [square updateBuffer];
-  }
-  
-  GLKMatrix4 projection = GLKMatrix4MakeOrtho(0, self.view.bounds.size.width, self.view.bounds.size.height, 0, 1, -1);
-  projection = GLKMatrix4Translate(GLKMatrix4Scale(projection, hackScroller_.zoomScale, hackScroller_.zoomScale, 1), (-hackScroller_.contentOffset.x / hackScroller_.zoomScale), (-hackScroller_.contentOffset.y / hackScroller_.zoomScale), 0);
-  glClearColor(0.f, 0.f, 0.f, 0.f);
-  
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  if (textureLoaded_) {
-    glBindTexture(GL_TEXTURE_2D, _texture);
-    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  }
-  
-  
-  BWShader *debugShader = [shaders_ objectForKey:@"Shader"];
-  [square use];
-  [debugShader use];
-  [debugShader setUniformValue:@(textureLoaded_) forUniformNamed:@"hasTexture"];
-  [debugShader setUniformValue:[NSValue valueWithGLKMatrix4:GLKMatrix4Multiply(projection, GLKMatrix4Identity)] forUniformNamed:@"modelViewProjectionMatrix"];
-  glDrawArrays(GL_TRIANGLE_STRIP, 0, square.vertexCount);
-  
-  [debugShader setUniformValue:@(0) forUniformNamed:@"hasTexture"];
-  [debugShader setUniformValue:[NSValue valueWithGLKMatrix4:GLKMatrix4Multiply(projection, [self homographicMatrix])] forUniformNamed:@"modelViewProjectionMatrix"];
-
-  glLineWidth(4.f);
-  glDrawArrays(GL_LINE_LOOP, 0, square.vertexCount);
-  
-  if (drawOverlay_ && textureLoaded_) {
-    GLKMatrix4 transHomography = [self transHomographicMatrix];
+    overLayModel_.projection = projection;
+    overLayModel_.transform = HomographicMatrix(scaledImageSize.width, scaledImageSize.height, topLeft_.center, topRight_.center, bottomLeft_.center, bottomrRight_.center);
+    
+    GLKMatrix4 transHomography = TransHomographicMatrix(scaledImageSize.width, scaledImageSize.height, topLeft_.center, topRight_.center, bottomLeft_.center, bottomrRight_.center);
     
     int viewport[] = {0, 0, self.view.bounds.size.width, self.view.bounds.size.height};
     
@@ -551,10 +359,7 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
     topLeft.x = bottomLeft.x = leftEdge;
     topRight.x = bottomRight.x = rightEdge;
     
-    CGRect boundingBox = [self boundingBoxWithTopLeft:CGPointMake(topLeft.x, topLeft.y)
-                                             topRight:CGPointMake(topRight.x, topRight.y)
-                                           bottomLeft:CGPointMake(bottomLeft.x, bottomLeft.y)
-                                          bottomRight:CGPointMake(bottomRight.x, bottomRight.y)];
+    CGRect boundingBox = BoundingBoxForPoints(CGPointMake(topLeft.x, topLeft.y), CGPointMake(topRight.x, topRight.y), CGPointMake(bottomLeft.x, bottomLeft.y), CGPointMake(bottomRight.x, bottomRight.y));
     
     //figure out scale
     CGFloat scalex = scaledImageSize.width / boundingBox.size.width;
@@ -565,226 +370,84 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1,CGPoint point2) {
     
     GLKMatrix4 projection2 = GLKMatrix4MakeOrtho(0, self.view.bounds.size.width, self.view.bounds.size.height * 0.5, -self.view.bounds.size.height * 0.5, 1, -1);
     GLKMatrix4 adjustedProjection = GLKMatrix4Translate(GLKMatrix4Scale(projection2, scalex, scaley, 1), offset.x, offset.y, 0);
-    [debugShader setUniformValue:@(1) forUniformNamed:@"hasTexture"];
-    [debugShader setUniformValue:[NSValue valueWithGLKMatrix4:GLKMatrix4Multiply(adjustedProjection, transHomography)] forUniformNamed:@"modelViewProjectionMatrix"];
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, square.vertexCount);
+    xformedPictureModel_.projection = adjustedProjection;
+    xformedPictureModel_.transform = transHomography;
+    loupeModel_.projection = projection;
+    needsUpdate_ = NO;
   }
-  glBindVertexArrayOES(0);
+}
+
+- (void)glkView:(GLKView *)view drawInRect:(CGRect)rect
+{
+  if (pauseUpdate_) {
+    return;
+  }  
+
+  glClearColor(0.f, 0.f, 0.f, 0.f);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  
+  if (textureLoaded_) {
+    glBindTexture(GL_TEXTURE_2D, _texture);
+    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  }
+  [pictureModel_ use];
+  [pictureModel_.shader setUniform:@"hasTexture" withInt:textureLoaded_];
+  [pictureModel_ draw];
+  
+  [overLayModel_ use];
+  [overLayModel_.shader setUniform:@"hasTexture" withInt:0];
+  [overLayModel_ draw];
+  
+  
+  if (drawOverlay_ && textureLoaded_) {
+    [xformedPictureModel_ use];
+    [xformedPictureModel_.shader setUniform:@"hasTexture" withInt:1];
+    [xformedPictureModel_ draw];
+  }
   
   if (drawLoupe_ && textureLoaded_) {
-    BWShader *circleShader = [shaders_ objectForKey:@"circleShader"];
-    [circleShader use];
-    [loupe use];
-    [circleShader setUniformValue:@(1) forUniformNamed:@"hasTexture"];
-    [circleShader setUniformValue:[NSValue valueWithGLKMatrix4:projection] forUniformNamed:@"modelViewProjectionMatrix"];
-    [circleShader setUniformValue:@(0.04) forUniformNamed:@"circleRadius"];
-    [circleShader setUniformValue:[NSValue valueWithGLKVector4:GLKVector4Make(0.7, 0.4, 0.0, 0.4)] forUniformNamed:@"diffuseColor"];
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, loupe.vertexCount);
+    [loupeModel_ use];
+    [loupeModel_.shader setUniform:@"hasTexture" withInt:1];
+    [loupeModel_.shader setUniform:@"circleRadius" withFloat:0.04];
+    [loupeModel_.shader setUniform:@"diffuseColor" withVector4f:GLKVector4Make(0.7, 0.4, 0.0, 0.4)];
+    [loupeModel_ draw];
   }
   
   glBindTexture(GL_TEXTURE_2D, 0);
   glBindVertexArrayOES(0);
   glUseProgram(0);
-  
-  
-
 }
 
-- (void)updateOffsetPoints {
-  CGPoint p1 = topLeft_.center;
-  CGPoint p2 = topRight_.center;
-  CGPoint p3 = bottomLeft_.center;
-  CGPoint p4 = bottomrRight_.center;
+- (void)dealloc
+{
+  [self tearDownGL];
   
-  CGFloat topEdge, bottomEdge, leftEdge, rightEdge;
-  
-  leftEdge = p1.x + ((p3.x - p1.x) * 0.5);
-  rightEdge = p2.x + ((p4.x - p2.x) * 0.5);
-  
-  topEdge = p1.y + ((p2.y - p1.y) * 0.5);
-  bottomEdge = p3.y + ((p4.y - p3.y) * 0.5);
-  
-  p1.y = p1.y - topEdge;
-  p1.x = p1.x - leftEdge;
-  
-  p2.y = p2.y - topEdge;
-  p2.x = p2.x - rightEdge;
-  
-  p3.y = p3.y - bottomEdge;
-  p3.x = p3.x - leftEdge;
-  
-  p4.y = p4.y - bottomEdge;
-  p4.x = p4.x - leftEdge;
-  
-  
-//  CGPoint p2Offset = CGPointMake(p2.x - p1.x, p2.y - p1.y);
-//  CGPoint p3Offset = CGPointMake(p2.x - p1.x, p2.y - p1.y);
-//  CGPoint p4Offset = CGPointMake(p2.x - p1.x, p2.y - p1.y);
-}
-
-- (GLKMatrix4)adjustedHomographicMatrix {
-  CGPoint p1 = topLeft_.center;
-  CGPoint p2 = topRight_.center;
-  CGPoint p3 = bottomLeft_.center;
-  CGPoint p4 = bottomrRight_.center;
-  CGFloat w = scaledImageSize.width;
-  CGFloat h = scaledImageSize.height;
-  
-  CGFloat topEdge, bottomEdge, leftEdge, rightEdge;
-  
-  leftEdge = p1.x + ((p3.x - p1.x) * 0.5);
-  rightEdge = p2.x + ((p4.x - p2.x) * 0.5);
-  
-  topEdge = p1.y + ((p2.y - p1.y) * 0.5);
-  bottomEdge = p3.y + ((p4.y - p3.y) * 0.5);
-  
-  p1.y = p1.y - topEdge;
-  p1.x = p1.x - leftEdge;
-  
-  p2.y = p2.y - topEdge;
-  p2.x = w + (p2.x - rightEdge);
-  
-  p3.y = h + (p3.y - bottomEdge);
-  p3.x = p3.x - leftEdge;
-  
-  p4.y = h + (p4.y - bottomEdge);
-  p4.x = w + (p4.x - rightEdge);
-  
-  
-  
-  GLKMatrix3 t = general2dProjection(0, 0, p1.x, p1.y, w, 0, p2.x, p2.y, 0, h, p3.x, p3.y, w, h, p4.x, p4.y);
-  
-  for(int i = 0; i != 9; ++i) {
-    t.m[i] = t.m[i]/t.m[8];
+  if ([EAGLContext currentContext] == self.context) {
+    [EAGLContext setCurrentContext:nil];
   }
-  GLKMatrix4 r = GLKMatrix4Make(t.m[0], t.m[3], 0, t.m[6],
-                                t.m[1], t.m[4], 0, t.m[7],
-                                0, 0, 1, 0,
-                                t.m[2], t.m[5], 0, t.m[8]);
-  return r;
 }
 
-- (GLKMatrix4)transHomographicMatrix {
-  CGPoint p1 = topLeft_.center;
-  CGPoint p2 = topRight_.center;
-  CGPoint p3 = bottomLeft_.center;
-  CGPoint p4 = bottomrRight_.center;
+- (void)didReceiveMemoryWarning
+{
+  [super didReceiveMemoryWarning];
   
-  CGPoint p2Offset = CGPointMake(p2.x - p1.x, p2.y - p1.y);
-  CGPoint p3Offset = CGPointMake(p2.x - p1.x, p2.y - p1.y);
-  CGPoint p4Offset = CGPointMake(p2.x - p1.x, p2.y - p1.y);
-  
-//  p2.x -= p1.x;
-//  p2.y -= p1.y;
-//  p3.x -= p1.x;
-//  p3.y -= p1.y;
-//  p4.x -= p1.x;
-//  p4.y -= p1.y;
-//  p1 = CGPointZero;
-  
-//  CGFloat scale = self.view.bounds.size.width / p2.x;
-//  scale *= 1.1;
-//  p2.x *= scale;
-//  p2.y *= scale;
-//  p3.x *= scale;
-//  p3.y *= scale;
-//  p4.x *= scale;
-//  p4.y *= scale;
-  
-  
-  CGFloat w = scaledImageSize.width;
-  CGFloat h = scaledImageSize.height;
-  
-  GLKMatrix3 t = general2dProjection(0, 0, p1.x, p1.y, w, 0, p2.x, p2.y, 0, h, p3.x, p3.y, w, h, p4.x, p4.y);
-  
-  for(int i = 0; i != 9; ++i) {
-    t.m[i] = t.m[i]/t.m[8];
-  }
-  GLKMatrix4 r = GLKMatrix4Make(t.m[0], t.m[3], 0, t.m[6],
-                                t.m[1], t.m[4], 0, t.m[7],
-                                0, 0, 1, 0,
-                                t.m[2], t.m[5], 0, t.m[8]);
-  
-  bool is;
-  GLKMatrix4 invertR = GLKMatrix4Invert(r, &is);
-  return invertR;
-}
-
-- (GLKMatrix4)homographicMatrix {
-  CGPoint p1 = topLeft_.center;
-  CGPoint p2 = topRight_.center;
-  CGPoint p3 = bottomLeft_.center;
-  CGPoint p4 = bottomrRight_.center;
-  CGFloat w = scaledImageSize.width;
-  CGFloat h = scaledImageSize.height;
-  
-  GLKMatrix3 t = general2dProjection(0, 0, p1.x, p1.y, w, 0, p2.x, p2.y, 0, h, p3.x, p3.y, w, h, p4.x, p4.y);
-  
-  for(int i = 0; i != 9; ++i) {
-    t.m[i] = t.m[i]/t.m[8];
-  }
-  GLKMatrix4 r = GLKMatrix4Make(t.m[0], t.m[3], 0, t.m[6],
-                                t.m[1], t.m[4], 0, t.m[7],
-                                0, 0, 1, 0,
-                                t.m[2], t.m[5], 0, t.m[8]);
-  return r;
-}
-
-
-GLKMatrix3 general2dProjection(CGFloat x1s, CGFloat y1s, CGFloat x1d, CGFloat y1d,
-                               CGFloat x2s, CGFloat y2s, CGFloat x2d, CGFloat y2d,
-                               CGFloat x3s, CGFloat y3s, CGFloat x3d, CGFloat y3d,
-                               CGFloat x4s, CGFloat y4s, CGFloat x4d, CGFloat y4d) {
-  GLKMatrix3 s = basisToPoints(x1s, y1s, x2s, y2s, x3s, y3s, x4s, y4s);
-  GLKMatrix3 d = basisToPoints(x1d, y1d, x2d, y2d, x3d, y3d, x4d, y4d);
-  GLKMatrix3 sa = adj(s);
-  return multmm(d, sa);
-}
-
-GLKMatrix3 adj(GLKMatrix3 m) { // Compute the adjugate of m
-  
-  GLKMatrix3 r;
-  r.m[0] = m.m[4]*m.m[8]-m.m[5]*m.m[7];
-  r.m[1] = m.m[2]*m.m[7]-m.m[1]*m.m[8];
-  r.m[2] = m.m[1]*m.m[5]-m.m[2]*m.m[4];
-  r.m[3] = m.m[5]*m.m[6]-m.m[3]*m.m[8];
-  r.m[4] = m.m[0]*m.m[8]-m.m[2]*m.m[6];
-  r.m[5] = m.m[2]*m.m[3]-m.m[0]*m.m[5];
-  r.m[6] = m.m[3]*m.m[7]-m.m[4]*m.m[6];
-  r.m[7] = m.m[1]*m.m[6]-m.m[0]*m.m[7];
-  r.m[8] = m.m[0]*m.m[4]-m.m[1]*m.m[3];
-  return r;
-}
-
-GLKVector3 multmv(GLKMatrix3 m, GLKVector3 v) { // multiply matrix and vector
-  GLKVector3 r;
-  r.v[0] = m.m[0]*v.v[0] + m.m[1]*v.v[1] + m.m[2]*v.v[2];
-  r.v[1] = m.m[3]*v.v[0] + m.m[4]*v.v[1] + m.m[5]*v.v[2];
-  r.v[2] = m.m[6]*v.v[0] + m.m[7]*v.v[1] + m.m[8]*v.v[2];
-  return r;
-}
-
-GLKMatrix3 basisToPoints(x1, y1, x2, y2, x3, y3, x4, y4) {
-  GLKMatrix3 m;
-  m = GLKMatrix3Make(x1, x2, x3, y1, y2, y3, 1,  1,  1);
-  GLKMatrix3 ma = adj(m);
-  GLKVector3 v = multmv(ma, GLKVector3Make(x4, y4, 1));
-  GLKMatrix3 mb = GLKMatrix3Make(v.v[0], 0, 0, 0, v.v[1], 0, 0, 0, v.v[2]);
-  return multmm(m, mb);
-}
-
-GLKMatrix3 multmm(GLKMatrix3 a, GLKMatrix3 b) { // multiply two matrices
-  GLKMatrix3 c;
-  for (int i = 0; i != 3; ++i) {
-    for (int j = 0; j != 3; ++j) {
-      float cij = 0;
-      for (int k = 0; k != 3; ++k) {
-        cij += a.m[3*i + k]*b.m[3*k + j];
-      }
-      c.m[3*i + j] = cij;
+  if ([self isViewLoaded] && ([[self view] window] == nil)) {
+    self.view = nil;
+    
+    [self tearDownGL];
+    
+    if ([EAGLContext currentContext] == self.context) {
+      [EAGLContext setCurrentContext:nil];
     }
+    self.context = nil;
   }
-  return c;
+  
+  // Dispose of any resources that can be recreated.
+}
+
+- (void)tearDownGL {
+  [EAGLContext setCurrentContext:self.context];
 }
 
 @end

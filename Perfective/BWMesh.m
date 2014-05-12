@@ -13,6 +13,15 @@
   size_t dataSize_;
 }
 
+- (void)logBuffer {
+  NSMutableArray *values = [NSMutableArray array];
+  for (int i = 0; i < _vertexCount * 9; i ++) {
+    [values addObject:@(data_[i])];
+  }
+  NSLog(@"\rMesh [ %@ ]", [values componentsJoinedByString:@", "]);
+}
+
+
 - (id)initWithNumberOfVertices:(GLint)vertexCount {
   self = [super init];
   if (self) {
