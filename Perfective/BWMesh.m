@@ -138,6 +138,8 @@
 }
 
 - (void)dealloc {
+  glBindVertexArrayOES(0);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
   glDeleteBuffers(1, &(_vertexBuffer));
   glDeleteVertexArraysOES(1, &(_vertexArray));
   free(data_);

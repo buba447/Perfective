@@ -9,7 +9,7 @@
 uniform int hasTexture;
 uniform sampler2D texture;
 
-varying lowp vec4 textureVarying;
+varying highp vec4 textureVarying;
 uniform lowp vec4 diffuseColor;
 void main()
 {

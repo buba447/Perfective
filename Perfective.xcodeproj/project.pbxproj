@@ -31,6 +31,7 @@
 		48829706190B0D030061D897 /* BWMesh.m in Sources */ = {isa = PBXBuildFile; fileRef = 48829705190B0D030061D897 /* BWMesh.m */; };
 		48829709190B10AB0061D897 /* BWShader.m in Sources */ = {isa = PBXBuildFile; fileRef = 48829708190B10AB0061D897 /* BWShader.m */; };
 		48AEC118192051CA00D4257B /* BWMath.m in Sources */ = {isa = PBXBuildFile; fileRef = 48AEC117192051CA00D4257B /* BWMath.m */; };
+		48AEC11A1920A55900D4257B /* photo.JPG in Resources */ = {isa = PBXBuildFile; fileRef = 48AEC1191920A55900D4257B /* photo.JPG */; };
 		48CADF46191F460F0090456C /* NSValue+BWValue.m in Sources */ = {isa = PBXBuildFile; fileRef = 48CADF45191F460F0090456C /* NSValue+BWValue.m */; };
 		48CADF491920314A0090456C /* BWModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 48CADF481920314A0090456C /* BWModel.m */; };
 		48CADF4C192032810090456C /* BWImage.m in Sources */ = {isa = PBXBuildFile; fileRef = 48CADF4B192032810090456C /* BWImage.m */; };
@@ -79,6 +80,11 @@
 		48829708190B10AB0061D897 /* BWShader.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BWShader.m; sourceTree = "<group>"; };
 		48AEC116192051CA00D4257B /* BWMath.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BWMath.h; sourceTree = "<group>"; };
 		48AEC117192051CA00D4257B /* BWMath.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BWMath.m; sourceTree = "<group>"; };
+		48AEC1191920A55900D4257B /* photo.JPG */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = photo.JPG; sourceTree = "<group>"; };
+		48AEC1851921F5F900D4257B /* utarray.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = utarray.h; sourceTree = "<group>"; };
+		48AEC1861921F5F900D4257B /* uthash.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = uthash.h; sourceTree = "<group>"; };
+		48AEC1871921F5F900D4257B /* utlist.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = utlist.h; sourceTree = "<group>"; };
+		48AEC1881921F5F900D4257B /* utstring.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = utstring.h; sourceTree = "<group>"; };
 		48CADF44191F460F0090456C /* NSValue+BWValue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSValue+BWValue.h"; sourceTree = "<group>"; };
 		48CADF45191F460F0090456C /* NSValue+BWValue.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSValue+BWValue.m"; sourceTree = "<group>"; };
 		48CADF471920314A0090456C /* BWModel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BWModel.h; sourceTree = "<group>"; };
@@ -177,6 +183,7 @@
 				48CADF45191F460F0090456C /* NSValue+BWValue.m */,
 				48AEC116192051CA00D4257B /* BWMath.h */,
 				48AEC117192051CA00D4257B /* BWMath.m */,
+				48AEC1841921F5EB00D4257B /* Third Party */,
 				488296E5190B0AE60061D897 /* Images.xcassets */,
 				488296D0190B0AE60061D897 /* Supporting Files */,
 			);
@@ -191,6 +198,7 @@
 				488296D5190B0AE60061D897 /* main.m */,
 				488296D7190B0AE60061D897 /* Perfective-Prefix.pch */,
 				48319B181919CB57001788D7 /* barn2.jpg */,
+				48AEC1191920A55900D4257B /* photo.JPG */,
 			);
 			name = "Supporting Files";
 			sourceTree = "<group>";
@@ -211,6 +219,25 @@
 				488296F5190B0AE60061D897 /* InfoPlist.strings */,
 			);
 			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		48AEC1831921F5E200D4257B /* UTHash */ = {
+			isa = PBXGroup;
+			children = (
+				48AEC1851921F5F900D4257B /* utarray.h */,
+				48AEC1861921F5F900D4257B /* uthash.h */,
+				48AEC1871921F5F900D4257B /* utlist.h */,
+				48AEC1881921F5F900D4257B /* utstring.h */,
+			);
+			name = UTHash;
+			sourceTree = "<group>";
+		};
+		48AEC1841921F5EB00D4257B /* Third Party */ = {
+			isa = PBXGroup;
+			children = (
+				48AEC1831921F5E200D4257B /* UTHash */,
+			);
+			name = "Third Party";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -297,6 +324,7 @@
 				488296E6190B0AE60061D897 /* Images.xcassets in Resources */,
 				48319B38191AB49D001788D7 /* circleShader.vsh in Resources */,
 				488296DF190B0AE60061D897 /* Shader.fsh in Resources */,
+				48AEC11A1920A55900D4257B /* photo.JPG in Resources */,
 				48319B36191AB48E001788D7 /* circleShader.fsh in Resources */,
 				488296D4190B0AE60061D897 /* InfoPlist.strings in Resources */,
 				488296DD190B0AE60061D897 /* Main.storyboard in Resources */,

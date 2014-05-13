@@ -10,4 +10,12 @@
 
 @interface BWImage : NSObject
 
+@property (nonatomic, readonly) GLuint imageLocation;
+@property (nonatomic, readonly) UIImage *originalImage;
+@property (nonatomic, readonly) BOOL imageLoaded;
+
+- (id)initWithImage:(UIImage *)image;
+- (void)use;
+- (void)loadTexture;
+- (void)unloadTexture;
 @end

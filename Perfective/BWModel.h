@@ -9,14 +9,18 @@
 #import <Foundation/Foundation.h>
 @class BWShader;
 @class BWMesh;
+@class BWImage;
 
 @interface BWModel : NSObject
 
 @property (nonatomic, assign) GLKMatrix4 projection;
+@property (nonatomic, assign) GLKMatrix4 projectionTransform;
 @property (nonatomic, assign) GLKMatrix4 transform;
 
 @property (nonatomic, strong) BWShader *shader;
 @property (nonatomic, strong) BWMesh *mesh;
+@property (nonatomic, strong) BWImage *imageTexture;
+@property (nonatomic, assign) BOOL drawLines;
 
 - (void)use;
 - (void)draw;

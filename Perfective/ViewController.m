@@ -10,6 +10,7 @@
 #import "BWMesh.h"
 #import "BWShader.h"
 #import "BWModel.h"
+#import "BWImage.h"
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
@@ -33,7 +34,6 @@
   
   BOOL drawOverlay_;
   BOOL drawLoupe_;
-  GLuint _texture;
   BOOL textureLoaded_;
   BOOL pauseUpdate_;
 }
@@ -114,7 +114,14 @@
   bottomLeft_.center = CGPointMake(44, (self.view.bounds.size.height * 0.5) - 44);
   bottomrRight_.center = CGPointMake(self.view.bounds.size.width - 44, (self.view.bounds.size.height * 0.5) - 44);
   UIImage *image = [info valueForKey:UIImagePickerControllerOriginalImage];
-  [self loadTextureImage:image];
+  
+  BWImage *selectedImage = [[BWImage alloc] initWithImage:image];
+  loupeModel_.imageTexture = selectedImage;
+  pictureModel_.imageTexture = selectedImage;
+  xformedPictureModel_.imageTexture = selectedImage;
+  
+  
+  needsUpdate_ = YES;
   pauseUpdate_ = NO;
   [self dismissViewControllerAnimated:YES completion:nil];
 }
@@ -148,7 +155,6 @@
   
   [EAGLContext setCurrentContext:self.context];
 
-  [self loadTextureImage:[UIImage imageNamed:@"barn2.jpg"]];
 //  glEnable(GL_DEPTH_TEST);
   glEnable(GL_TEXTURE_2D);
   
@@ -156,6 +162,8 @@
   glEnable(GL_BLEND);
   glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glShadeModel (GL_SMOOTH);
+  
+  BWImage *selectedImage = [[BWImage alloc] initWithImage:[UIImage imageNamed:@"barn2.jpg"]];
   
   BWShader *pictureShader = [[BWShader alloc] initWithShaderNamed:@"Shader"];
   
@@ -168,17 +176,21 @@
   loupeModel_ = [[BWModel alloc] init];
   loupeModel_.shader = loupeShader;
   loupeModel_.mesh = loupeMesh;
+  loupeModel_.imageTexture = selectedImage;
   
   pictureModel_ = [[BWModel alloc] init];
   pictureModel_.shader = pictureShader;
   pictureModel_.mesh = pictureMesh;
+  pictureModel_.imageTexture = selectedImage;
   
   overLayModel_ = [[BWModel alloc] init];
   overLayModel_.shader = pictureShader;
   overLayModel_.mesh = pictureMesh;
+  
   xformedPictureModel_ = [[BWModel alloc] init];
   xformedPictureModel_.shader = pictureShader;
   xformedPictureModel_.mesh = pictureMesh;
+  xformedPictureModel_.imageTexture = selectedImage;
   
 }
 
@@ -272,60 +284,7 @@
   needsUpdate_ = YES;
 }
 
-- (void)loadTextureImage:(UIImage *)image {
-  if (textureLoaded_) {
-    textureLoaded_ = NO;
-    glBindTexture(GL_TEXTURE_2D, 0);
-    glDeleteTextures(1, &_texture);
-  }
-  
-  GLuint returnTexture;
-  
-  GLuint width = scaledImageSize.width * 2;
-  GLuint height = scaledImageSize.height * 2;
-  CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-  void *imageData = malloc( height * width * 4 );
-  CGContextRef imgcontext = CGBitmapContextCreate( imageData, width, height, 8, 4 * width, colorSpace, kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big );
-  UIGraphicsPushContext(imgcontext);
-  CGColorSpaceRelease( colorSpace );
-  CGContextClearRect( imgcontext, CGRectMake( 0, 0, width, height ) );
-  CGAffineTransform flipVertical = CGAffineTransformMake(1, 0, 0, -1, 0, height);
-  CGContextConcatCTM(imgcontext, flipVertical);
-  CGRect imageDrawRect = CGRectZero;
-  imageDrawRect.size = CGSizeMake(width, height);
-  CGFloat boundAspect = (float)width / (float)height;
-  // 4w 2t = 2a
-  CGFloat imageAspect = image.size.width / image.size.height;
-  // 3w 2t = 1.5  -- change width by height factor
-  // 6w 2t = 3 -- change height by width factor
-  if (imageAspect < boundAspect) {
-    imageDrawRect.size.width = (height / image.size.height) * image.size.width;
-    imageDrawRect.origin.x = (width - imageDrawRect.size.width) * 0.5;
-  } else if (imageAspect > boundAspect) {
-    imageDrawRect.size.height = (width / image.size.width) * image.size.height;
-    imageDrawRect.origin.y = (height - imageDrawRect.size.height) * 0.5;
-  }
 
-  [image drawInRect:imageDrawRect];
-  
-
-  glGenTextures(1, &returnTexture);
-  glBindTexture(GL_TEXTURE_2D, returnTexture);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height,
-               0, GL_RGBA, GL_UNSIGNED_BYTE, imageData);
-	glBindTexture(GL_TEXTURE_2D, 0);
-  
-  free(imageData);
-  CGContextRelease(imgcontext);
-  
-  _texture = returnTexture;
-  textureLoaded_ = YES;
-}
 
 #pragma mark - GLKView and GLKViewController delegate methods
 
@@ -386,31 +345,25 @@
   glClearColor(0.f, 0.f, 0.f, 0.f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   
-  if (textureLoaded_) {
-    glBindTexture(GL_TEXTURE_2D, _texture);
-    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  }
+
   [pictureModel_ use];
-  [pictureModel_.shader setUniform:@"hasTexture" withInt:textureLoaded_];
   [pictureModel_ draw];
   
   [overLayModel_ use];
-  [overLayModel_.shader setUniform:@"hasTexture" withInt:0];
   [overLayModel_ draw];
   
   
-  if (drawOverlay_ && textureLoaded_) {
+  if (drawOverlay_) {
     [xformedPictureModel_ use];
-    [xformedPictureModel_.shader setUniform:@"hasTexture" withInt:1];
     [xformedPictureModel_ draw];
   }
   
-  if (drawLoupe_ && textureLoaded_) {
+  if (drawLoupe_) {
     [loupeModel_ use];
-    [loupeModel_.shader setUniform:@"hasTexture" withInt:1];
-    [loupeModel_.shader setUniform:@"circleRadius" withFloat:0.04];
-    [loupeModel_.shader setUniform:@"diffuseColor" withVector4f:GLKVector4Make(0.7, 0.4, 0.0, 0.4)];
+    GLfloat circleRadius = 0.04;
+    [loupeModel_.shader setUniform:@"circleRadius" withValue:&circleRadius];
+    GLKVector4 diffuseColor = GLKVector4Make(0.7, 0.4, 0.0, 0.4);
+    [loupeModel_.shader setUniform:@"diffuseColor" withValue:&diffuseColor];
     [loupeModel_ draw];
   }
   

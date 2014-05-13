@@ -14,7 +14,7 @@ void main()
   alteredTexture.y = alteredTexture.y - 0.5;
   highp float magDistance = distance(vec2(0.0, 0.0), alteredTexture.xy);
   magDistance = (magDistance * 2.0);
-  magDistance = (magDistance * magDistance * magDistance * magDistance) * 0.1;
+  magDistance = (magDistance * magDistance * magDistance * magDistance) * 0.05;
   lowp vec2 offsetDistance = magDistance * alteredTexture.xy;
   
   highp float distanceFromCenter = distance(center, textureVarying_b.xy);
