@@ -11,6 +11,7 @@
 #import "BWShader.h"
 #import "BWModel.h"
 #import "BWImage.h"
+#import "BWLineModel.h"
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
@@ -30,12 +31,13 @@
   BWModel *loupeModel_;
   BWModel *pictureModel_;
   BWModel *xformedPictureModel_;
-  BWModel *overLayModel_;
+  BWLineModel *overLayModel_;
   
   BOOL drawOverlay_;
   BOOL drawLoupe_;
   BOOL textureLoaded_;
   BOOL pauseUpdate_;
+  BOOL drawUpdate_;
 }
 
 @property (strong, nonatomic) EAGLContext *context;
@@ -171,7 +173,11 @@
   
   BWMesh *loupeMesh = [[BWMesh alloc] initWithNumberOfVertices:4];
   BWMesh *pictureMesh = [[BWMesh alloc] initWithNumberOfVertices:4];
+  
   [self computeDataForSquare:pictureMesh withTopLeft:CGPointMake(0, 0) topRight:CGPointMake(scaledImageSize.width, 0) bottomLeft:CGPointMake(0, scaledImageSize.height) bottomRight:CGPointMake(scaledImageSize.width, scaledImageSize.height)];
+
+  BWMesh *lineMesh = [[BWMesh alloc] initWithNumberOfVertices:4];
+  [self computeDataForSquare:lineMesh withTopLeft:CGPointMake(0, 0) topRight:CGPointMake(scaledImageSize.width, 0) bottomLeft:CGPointMake(scaledImageSize.width, scaledImageSize.height) bottomRight:CGPointMake(0, scaledImageSize.height)];
 
   loupeModel_ = [[BWModel alloc] init];
   loupeModel_.shader = loupeShader;
@@ -183,9 +189,11 @@
   pictureModel_.mesh = pictureMesh;
   pictureModel_.imageTexture = selectedImage;
   
-  overLayModel_ = [[BWModel alloc] init];
+  overLayModel_ = [[BWLineModel alloc] init];
   overLayModel_.shader = pictureShader;
-  overLayModel_.mesh = pictureMesh;
+  overLayModel_.mesh = lineMesh;
+  overLayModel_.lineWidth = 2.f;
+  overLayModel_.lineColor = GLKVector4Make(1, 0.4, 0.0, 0.2);
   
   xformedPictureModel_ = [[BWModel alloc] init];
   xformedPictureModel_.shader = pictureShader;
@@ -290,6 +298,7 @@
 
 - (void)update {
   if (needsUpdate_) {
+    drawUpdate_ = YES;
     GLKMatrix4 projection = GLKMatrix4MakeOrtho(0, self.view.bounds.size.width, self.view.bounds.size.height, 0, 1, -1);
     pictureModel_.projection = projection;
     pictureModel_.transform = GLKMatrix4Identity;
@@ -338,10 +347,13 @@
 
 - (void)glkView:(GLKView *)view drawInRect:(CGRect)rect
 {
+  if (!drawUpdate_) {
+    return;
+  }
   if (pauseUpdate_) {
     return;
   }  
-
+  drawUpdate_ = NO;
   glClearColor(0.f, 0.f, 0.f, 0.f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   
@@ -350,8 +362,20 @@
   [pictureModel_ draw];
   
   [overLayModel_ use];
+  GLint dstState;
+  GLint srcState;
+  glGetIntegerv(GL_BLEND_SRC_RGB, &srcState);
+  glGetIntegerv(GL_BLEND_DST_RGB, &dstState);
+  glBlendFunc(GL_SRC_COLOR, GL_DST_COLOR);
+  overLayModel_.lineWidth = 8.f;
+  overLayModel_.lineColor = GLKVector4Make(0.7, 0.1, 0.0, 1.f);
   [overLayModel_ draw];
-  
+  glBlendFunc(srcState, dstState);
+  [overLayModel_ use];
+  overLayModel_.lineColor = GLKVector4Make(1, 0.9, 0.7, 0.5);
+  overLayModel_.lineWidth = 2.f;
+  [overLayModel_ draw];
+  glBlendFunc(srcState, dstState);
   
   if (drawOverlay_) {
     [xformedPictureModel_ use];

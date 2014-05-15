@@ -24,4 +24,6 @@
 
 - (void)use;
 - (void)draw;
+
+- (void)setUniforms;
 @end

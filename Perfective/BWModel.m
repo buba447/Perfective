@@ -34,19 +34,22 @@
   [self.mesh use];
 }
 
-- (void)draw {
-  if (!self.shader || !self.mesh) {
-    return;
-  }
-  
-  if (self.imageTexture) {
-    [self.imageTexture use];
-  }
+- (void)setUniforms {
   GLint hasTexture = (self.imageTexture != nil);
   [self.shader setUniform:@"hasTexture" withValue:&hasTexture];
   [self.shader setUniform:@"projection" withValue:&_projection];
   [self.shader setUniform:@"projectionTransform" withValue:&_projectionTransform];
   [self.shader setUniform:@"transform" withValue:&_transform];
+}
+
+- (void)draw {
+  if (!self.shader || !self.mesh) {
+    return;
+  }
+  if (self.imageTexture) {
+    [self.imageTexture use];
+  }
+  [self setUniforms];
   glDrawArrays(GL_TRIANGLE_STRIP, 0, self.mesh.vertexCount);
   glUseProgram(0);
   glBindBuffer(GL_ARRAY_BUFFER, 0);

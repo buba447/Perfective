@@ -18,7 +18,6 @@
 		488296D4190B0AE60061D897 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 488296D2190B0AE60061D897 /* InfoPlist.strings */; };
 		488296D6190B0AE60061D897 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 488296D5190B0AE60061D897 /* main.m */; };
 		488296DA190B0AE60061D897 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 488296D9190B0AE60061D897 /* AppDelegate.m */; };
-		488296DD190B0AE60061D897 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 488296DB190B0AE60061D897 /* Main.storyboard */; };
 		488296DF190B0AE60061D897 /* Shader.fsh in Resources */ = {isa = PBXBuildFile; fileRef = 488296DE190B0AE60061D897 /* Shader.fsh */; };
 		488296E1190B0AE60061D897 /* Shader.vsh in Resources */ = {isa = PBXBuildFile; fileRef = 488296E0190B0AE60061D897 /* Shader.vsh */; };
 		488296E4190B0AE60061D897 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 488296E3190B0AE60061D897 /* ViewController.m */; };
@@ -32,6 +31,7 @@
 		48829709190B10AB0061D897 /* BWShader.m in Sources */ = {isa = PBXBuildFile; fileRef = 48829708190B10AB0061D897 /* BWShader.m */; };
 		48AEC118192051CA00D4257B /* BWMath.m in Sources */ = {isa = PBXBuildFile; fileRef = 48AEC117192051CA00D4257B /* BWMath.m */; };
 		48AEC11A1920A55900D4257B /* photo.JPG in Resources */ = {isa = PBXBuildFile; fileRef = 48AEC1191920A55900D4257B /* photo.JPG */; };
+		48AEC1B21922970500D4257B /* BWLineModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 48AEC1B11922970500D4257B /* BWLineModel.m */; };
 		48CADF46191F460F0090456C /* NSValue+BWValue.m in Sources */ = {isa = PBXBuildFile; fileRef = 48CADF45191F460F0090456C /* NSValue+BWValue.m */; };
 		48CADF491920314A0090456C /* BWModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 48CADF481920314A0090456C /* BWModel.m */; };
 		48CADF4C192032810090456C /* BWImage.m in Sources */ = {isa = PBXBuildFile; fileRef = 48CADF4B192032810090456C /* BWImage.m */; };
@@ -63,7 +63,6 @@
 		488296D7190B0AE60061D897 /* Perfective-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Perfective-Prefix.pch"; sourceTree = "<group>"; };
 		488296D8190B0AE60061D897 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		488296D9190B0AE60061D897 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
-		488296DC190B0AE60061D897 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		488296DE190B0AE60061D897 /* Shader.fsh */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; name = Shader.fsh; path = Shaders/Shader.fsh; sourceTree = "<group>"; };
 		488296E0190B0AE60061D897 /* Shader.vsh */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; name = Shader.vsh; path = Shaders/Shader.vsh; sourceTree = "<group>"; };
 		488296E2190B0AE60061D897 /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
@@ -85,6 +84,8 @@
 		48AEC1861921F5F900D4257B /* uthash.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = uthash.h; sourceTree = "<group>"; };
 		48AEC1871921F5F900D4257B /* utlist.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = utlist.h; sourceTree = "<group>"; };
 		48AEC1881921F5F900D4257B /* utstring.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = utstring.h; sourceTree = "<group>"; };
+		48AEC1B01922970500D4257B /* BWLineModel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BWLineModel.h; sourceTree = "<group>"; };
+		48AEC1B11922970500D4257B /* BWLineModel.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BWLineModel.m; sourceTree = "<group>"; };
 		48CADF44191F460F0090456C /* NSValue+BWValue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSValue+BWValue.h"; sourceTree = "<group>"; };
 		48CADF45191F460F0090456C /* NSValue+BWValue.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSValue+BWValue.m"; sourceTree = "<group>"; };
 		48CADF471920314A0090456C /* BWModel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BWModel.h; sourceTree = "<group>"; };
@@ -164,7 +165,6 @@
 				481471541910C2E900729C38 /* iPad */,
 				488296D8190B0AE60061D897 /* AppDelegate.h */,
 				488296D9190B0AE60061D897 /* AppDelegate.m */,
-				488296DB190B0AE60061D897 /* Main.storyboard */,
 				488296E0190B0AE60061D897 /* Shader.vsh */,
 				488296DE190B0AE60061D897 /* Shader.fsh */,
 				48319B37191AB49D001788D7 /* circleShader.vsh */,
@@ -177,6 +177,8 @@
 				48829705190B0D030061D897 /* BWMesh.m */,
 				48CADF471920314A0090456C /* BWModel.h */,
 				48CADF481920314A0090456C /* BWModel.m */,
+				48AEC1B01922970500D4257B /* BWLineModel.h */,
+				48AEC1B11922970500D4257B /* BWLineModel.m */,
 				48CADF4A192032810090456C /* BWImage.h */,
 				48CADF4B192032810090456C /* BWImage.m */,
 				48CADF44191F460F0090456C /* NSValue+BWValue.h */,
@@ -327,7 +329,6 @@
 				48AEC11A1920A55900D4257B /* photo.JPG in Resources */,
 				48319B36191AB48E001788D7 /* circleShader.fsh in Resources */,
 				488296D4190B0AE60061D897 /* InfoPlist.strings in Resources */,
-				488296DD190B0AE60061D897 /* Main.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -354,6 +355,7 @@
 				48AEC118192051CA00D4257B /* BWMath.m in Sources */,
 				48CADF46191F460F0090456C /* NSValue+BWValue.m in Sources */,
 				488296DA190B0AE60061D897 /* AppDelegate.m in Sources */,
+				48AEC1B21922970500D4257B /* BWLineModel.m in Sources */,
 				488296D6190B0AE60061D897 /* main.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -383,14 +385,6 @@
 				488296D3190B0AE60061D897 /* en */,
 			);
 			name = InfoPlist.strings;
-			sourceTree = "<group>";
-		};
-		488296DB190B0AE60061D897 /* Main.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				488296DC190B0AE60061D897 /* Base */,
-			);
-			name = Main.storyboard;
 			sourceTree = "<group>";
 		};
 		488296F5190B0AE60061D897 /* InfoPlist.strings */ = {
