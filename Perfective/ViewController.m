@@ -12,11 +12,11 @@
 #import "BWModel.h"
 #import "BWImage.h"
 #import "BWLineModel.h"
+#import "CGGeometryAdditions.h"
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
 @interface ViewController () <UIImagePickerControllerDelegate, UINavigationControllerDelegate, UIScrollViewDelegate> {
-
   UIView *topLeft_;
   UIView *topRight_;
   UIView *bottomLeft_;
@@ -27,12 +27,13 @@
   CGPoint bottomRightPosition;
   CGPoint topRightPosition;
   CGSize scaledImageSize;
-  
+  CGFloat horizScale_;
   BWModel *loupeModel_;
   BWModel *pictureModel_;
   BWModel *xformedPictureModel_;
   BWLineModel *overLayModel_;
-  
+  CADisplayLink *trackingDisplayLink_;
+  UIScrollView *scroller_;
   BOOL drawOverlay_;
   BOOL drawLoupe_;
   BOOL textureLoaded_;
@@ -59,13 +60,23 @@
   [super viewDidLoad];
   textureLoaded_ = NO;
   self.context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
-
+  horizScale_ = 1.f;
 
   scaledImageSize.width = self.view.bounds.size.width;
   scaledImageSize.height = self.view.bounds.size.height * 0.5;
 
   pauseUpdate_ = NO;
   needsUpdate_ = YES;
+  
+  
+  scroller_ = [[UIScrollView alloc] initWithFrame:self.view.bounds];
+  [self.view addSubview:scroller_];
+  scroller_.alwaysBounceHorizontal = YES;
+  scroller_.alwaysBounceVertical = YES;
+  scroller_.contentSize = self.view.bounds.size;
+  scroller_.indicatorStyle = UIScrollViewIndicatorStyleWhite;
+  scroller_.delegate = self;
+  
   
   topLeft_ = [self setupCornerView];
   topLeft_.center = CGPointMake(44, 44);
@@ -84,9 +95,11 @@
   view.context = self.context;
   view.drawableDepthFormat = GLKViewDrawableDepthFormat24;
   
+  
+  
   UIButton *update = [UIButton buttonWithType:UIButtonTypeCustom];
-  [update setTitle:@"Update" forState:UIControlStateNormal];
-  [update addTarget:self action:@selector(updateOverlay) forControlEvents:UIControlEventTouchUpInside];
+  [update setTitle:@"Save" forState:UIControlStateNormal];
+  [update addTarget:self action:@selector(saveImage) forControlEvents:UIControlEventTouchUpInside];
   update.frame = CGRectMake(0, self.view.bounds.size.height - 44, 70, 44);
   [self.view addSubview:update];
   
@@ -97,6 +110,9 @@
   [self.view addSubview:picImage];
   
   [self setupGL];
+  
+  UIPinchGestureRecognizer *pinch = [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(handPinch:)];
+  [self.view addGestureRecognizer:pinch];
   
   GLint maxRenderbufferSize;
   glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxRenderbufferSize);
@@ -110,11 +126,19 @@
   [self presentViewController:imagePicker animated:YES completion:nil];
 }
 
+- (void)handPinch:(UIPinchGestureRecognizer *)pinch {
+  needsUpdate_ = YES;
+  CGFloat scale = pinch.scale;
+  horizScale_ += (scale - 1);
+  [pinch setScale:1];
+}
+
 - (void)imagePickerController:(UIImagePickerController *)picker didFinishPickingMediaWithInfo:(NSDictionary *)info {
   topLeft_.center = CGPointMake(44, 44);
   topRight_.center = CGPointMake(self.view.bounds.size.width - 44, 44);
   bottomLeft_.center = CGPointMake(44, (self.view.bounds.size.height * 0.5) - 44);
   bottomrRight_.center = CGPointMake(self.view.bounds.size.width - 44, (self.view.bounds.size.height * 0.5) - 44);
+  horizScale_ = 1.f;
   UIImage *image = [info valueForKey:UIImagePickerControllerOriginalImage];
   
   BWImage *selectedImage = [[BWImage alloc] initWithImage:image];
@@ -139,18 +163,20 @@
   view.backgroundColor = [UIColor colorWithWhite:1 alpha:0.3];
   UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handPan:)];
   [view addGestureRecognizer:pan];
-  [self.view addSubview:view];
+  [scroller_ addSubview:view];
   return view;
 }
 
 - (void)handPan:(UIPanGestureRecognizer *)panGesture {
+  if (panGesture.state == UIGestureRecognizerStateEnded) {
+    drawLoupe_ = NO;
+    needsUpdate_ = YES;
+    return;
+  }
   panGesture.view.center = [panGesture locationInView:self.view];
   [self computeLoupeDateFromPoint:panGesture.view.center];
   drawLoupe_ = YES;
   needsUpdate_ = YES;
-  if (panGesture.state == UIGestureRecognizerStateEnded) {
-    drawLoupe_ = NO;
-  }
 }
 
 - (void)setupGL {
@@ -165,7 +191,7 @@
   glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glShadeModel (GL_SMOOTH);
   
-  BWImage *selectedImage = [[BWImage alloc] initWithImage:[UIImage imageNamed:@"barn2.jpg"]];
+  BWImage *selectedImage = [[BWImage alloc] initWithImage:[UIImage imageNamed:@"photo.JPG"]];
   
   BWShader *pictureShader = [[BWShader alloc] initWithShaderNamed:@"Shader"];
   
@@ -292,7 +318,41 @@
   needsUpdate_ = YES;
 }
 
+#pragma mark - Scroll View Delegate
 
+- (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
+  [self startDisplayLinkIfNeccessary];
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
+  if (!decelerate) {
+    [self invalidateDisplayLink];
+  }
+}
+
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
+  [self invalidateDisplayLink];
+}
+
+#pragma mark - Display Link
+
+- (void)displayGL {
+  needsUpdate_ = YES;
+  [self update];
+  [(GLKView *)self.view display];
+}
+
+- (void)startDisplayLinkIfNeccessary {
+  if (!trackingDisplayLink_) {
+    trackingDisplayLink_ = [CADisplayLink displayLinkWithTarget:self selector:@selector(displayGL)];
+    [trackingDisplayLink_ addToRunLoop:[NSRunLoop mainRunLoop] forMode:UITrackingRunLoopMode];
+  }
+}
+
+- (void)invalidateDisplayLink {
+  [trackingDisplayLink_ invalidate];
+  trackingDisplayLink_ = nil;
+}
 
 #pragma mark - GLKView and GLKViewController delegate methods
 
@@ -300,14 +360,16 @@
   if (needsUpdate_) {
     drawUpdate_ = YES;
     GLKMatrix4 projection = GLKMatrix4MakeOrtho(0, self.view.bounds.size.width, self.view.bounds.size.height, 0, 1, -1);
+    GLKMatrix4 projectionXform = GLKMatrix4MakeTranslation(-scroller_.contentOffset.x, -scroller_.contentOffset.y, 0);
     pictureModel_.projection = projection;
-    pictureModel_.transform = GLKMatrix4Identity;
+    pictureModel_.projectionTransform = projectionXform;
+//    pictureModel_.transform = projectionXform;
     
     overLayModel_.projection = projection;
+    overLayModel_.projectionTransform = projectionXform;
     overLayModel_.transform = HomographicMatrix(scaledImageSize.width, scaledImageSize.height, topLeft_.center, topRight_.center, bottomLeft_.center, bottomrRight_.center);
     
-    GLKMatrix4 transHomography = TransHomographicMatrix(scaledImageSize.width, scaledImageSize.height, topLeft_.center, topRight_.center, bottomLeft_.center, bottomrRight_.center);
-    
+    GLKMatrix4 transHomography = GLKMatrix4Multiply(GLKMatrix4MakeScale(horizScale_, 1.f, 1.f), TransHomographicMatrix(scaledImageSize.width, scaledImageSize.height, topLeft_.center, topRight_.center, bottomLeft_.center, bottomrRight_.center));
     int viewport[] = {0, 0, self.view.bounds.size.width, self.view.bounds.size.height};
     
     GLKVector3 topLeft = GLKMathProject(GLKVector3Make(0, 0, 0), transHomography, projection, viewport);
@@ -329,18 +391,14 @@
     
     CGRect boundingBox = BoundingBoxForPoints(CGPointMake(topLeft.x, topLeft.y), CGPointMake(topRight.x, topRight.y), CGPointMake(bottomLeft.x, bottomLeft.y), CGPointMake(bottomRight.x, bottomRight.y));
     
-    //figure out scale
-    CGFloat scalex = scaledImageSize.width / boundingBox.size.width;
-    CGFloat scaley = scaledImageSize.height / boundingBox.size.height;
+    CGFloat screenRatio = self.view.bounds.size.height / self.view.bounds.size.width;
+    CGFloat newWindowHeight = boundingBox.size.width * screenRatio;
+    GLKMatrix4 newWindowProjection = GLKMatrix4MakeOrtho(boundingBox.origin.x, boundingBox.size.width + boundingBox.origin.x, boundingBox.origin.y + newWindowHeight, boundingBox.origin.y, 1, -1);
     
-    CGPoint offset = CGPointMake(- boundingBox.origin.x,
-                                 - boundingBox.origin.y);
-    
-    GLKMatrix4 projection2 = GLKMatrix4MakeOrtho(0, self.view.bounds.size.width, self.view.bounds.size.height * 0.5, -self.view.bounds.size.height * 0.5, 1, -1);
-    GLKMatrix4 adjustedProjection = GLKMatrix4Translate(GLKMatrix4Scale(projection2, scalex, scaley, 1), offset.x, offset.y, 0);
-    xformedPictureModel_.projection = adjustedProjection;
+    xformedPictureModel_.projection = projection;
     xformedPictureModel_.transform = transHomography;
-    loupeModel_.projection = projection;
+    xformedPictureModel_.projectionTransform = GLKMatrix4Translate(projectionXform, 0, 0.5 * self.view.bounds.size.height, 0);
+    loupeModel_.projection = GLKMatrix4Multiply(projection, projectionXform);
     needsUpdate_ = NO;
   }
 }
@@ -425,6 +483,135 @@
 
 - (void)tearDownGL {
   [EAGLContext setCurrentContext:self.context];
+}
+
+- (void)saveImage {
+  // Figure out drawing Rect and transforms.
+  
+  CGSize originalPictureSize = xformedPictureModel_.imageTexture.originalImage.size;
+  
+//  GLKMatrix4 transHomography = xformedPictureModel_.transform;
+  GLKMatrix4 projection = GLKMatrix4MakeOrtho(0, originalPictureSize.width, originalPictureSize.height, 0, 1, -1);
+
+//  int viewport[] = {0, 0, originalPictureSize.width, originalPictureSize.height};
+//  
+//  GLKVector3 topLeft = GLKMathProject(GLKVector3Make(0, 0, 0), transHomography, projection, viewport);
+//  topLeft.y = originalPictureSize.height - topLeft.y;
+//  
+//  GLKVector3 topRight = GLKMathProject(GLKVector3Make(scaledImageSize.width, 0, 0), transHomography, projection, viewport);
+//  topRight.y = originalPictureSize.height - topRight.y;
+//  
+//  GLKVector3 bottomLeft = GLKMathProject(GLKVector3Make(0, scaledImageSize.height, 0), transHomography, projection, viewport);
+//  bottomLeft.y = originalPictureSize.height - bottomLeft.y;
+//  
+//  GLKVector3 bottomRight = GLKMathProject(GLKVector3Make(scaledImageSize.width, scaledImageSize.height, 0), transHomography, projection, viewport);
+//  bottomRight.y = originalPictureSize.height - bottomRight.y;
+  
+//  CGFloat leftEdge = (topLeft.x + bottomLeft.x) / 2;
+//  CGFloat rightEdge = (topRight.x + bottomRight.x) / 2;
+//  topLeft.x = bottomLeft.x = leftEdge;
+//  topRight.x = bottomRight.x = rightEdge;
+//  
+//  CGRect boundingBox = BoundingBoxForPoints(CGPointMake(topLeft.x, topLeft.y), CGPointMake(topRight.x, topRight.y), CGPointMake(bottomLeft.x, bottomLeft.y), CGPointMake(bottomRight.x, bottomRight.y));
+  
+  
+//  CGFloat ratio = boundingBox.size.height / boundingBox.size.width;
+//  CGFloat width = originalPictureSize.width;
+//  CGFloat height = width * ratio;
+  
+  
+  
+//  CGFloat screenRatio = self.view.bounds.size.height / self.view.bounds.size.width;
+//  CGFloat newWindowHeight = boundingBox.size.width * screenRatio;
+//  GLKMatrix4 newWindowProjection = GLKMatrix4MakeOrtho(boundingBox.origin.x, boundingBox.size.width + boundingBox.origin.x, boundingBox.origin.y + newWindowHeight, boundingBox.origin.y, 1, -1);
+//  
+  CGFloat width = originalPictureSize.width;
+  CGFloat height = originalPictureSize.height;
+//  CGFloat screenRatio = self.view.bounds.size.height / self.view.bounds.size.width;
+//  CGFloat newWindowHeight = boundingBox.size.width * screenRatio;
+//  GLKMatrix4 newWindowProjection = GLKMatrix4MakeOrtho(boundingBox.origin.x, boundingBox.size.width + boundingBox.origin.x, boundingBox.origin.y + boundingBox.size.height, boundingBox.origin.y, 1, -1);
+  GLKMatrix4 oldXform = xformedPictureModel_.projection;
+  GLKMatrix4 oldXformTreans = xformedPictureModel_.projectionTransform;
+  
+//  xformedPictureModel_.projectionTransform = GLKMatrix4Identity;
+//  xformedPictureModel_.projection = projection;
+//  xformedPictureModel_.transform = GLKMatrix4Identity;
+  
+  
+  
+//  GLKMatrix4 newProjection = GLKMatrix4MakeOrtho(0, width, height, 0, 1, -1);
+  
+  pauseUpdate_ = YES;
+
+  GLuint framebuffer;
+  glGenFramebuffers(1, &framebuffer);
+  glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+  
+  GLuint colorRenderbuffer;
+  glGenRenderbuffers(1, &colorRenderbuffer);
+  glBindRenderbuffer(GL_RENDERBUFFER, colorRenderbuffer);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA4, width, height);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colorRenderbuffer);
+  
+  GLuint depthRenderbuffer;
+  glGenRenderbuffers(1, &depthRenderbuffer);
+  glBindRenderbuffer(GL_RENDERBUFFER, depthRenderbuffer);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthRenderbuffer);
+  
+  GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER) ;
+  if(status != GL_FRAMEBUFFER_COMPLETE) {
+    NSLog(@"failed to make complete framebuffer object %x", status);
+  }
+
+  glViewport(0, 0, width, height);
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  
+  glClearColor(1.f, 0.f, 0.f, 1.f);
+  glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+
+  [xformedPictureModel_ use];
+  [xformedPictureModel_ draw];
+
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glBindVertexArrayOES(0);
+  glUseProgram(0);
+  
+  
+  GLint x = 0, y = 0;
+  NSInteger dataLength = width * height * 4;
+  GLubyte *data = (GLubyte*)malloc(dataLength * sizeof(GLubyte));
+  
+  glPixelStorei(GL_PACK_ALIGNMENT, 4);
+  glReadPixels(x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
+  
+  CGDataProviderRef ref = CGDataProviderCreateWithData(NULL, data, dataLength, NULL);
+  CGColorSpaceRef colorspace = CGColorSpaceCreateDeviceRGB();
+  CGImageRef iref = CGImageCreate(width, height, 8, 32, width * 4, colorspace, kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast,
+                                  ref, NULL, true, kCGRenderingIntentDefault);
+  
+  
+  UIGraphicsBeginImageContext(CGSizeMake(width, height));
+  CGContextRef cgcontext = UIGraphicsGetCurrentContext();
+  CGContextSetBlendMode(cgcontext, kCGBlendModeCopy);
+  CGContextDrawImage(cgcontext, CGRectMake(0.0, 0.0, width, height), iref);
+  UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+  UIGraphicsEndImageContext();
+  
+  free(data);
+  CFRelease(ref);
+  CFRelease(colorspace);
+  CGImageRelease(iref);
+  UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil);
+  
+  glDeleteRenderbuffers(1, &colorRenderbuffer);
+  glDeleteRenderbuffers(1, &depthRenderbuffer);
+  glDeleteFramebuffers(1, &framebuffer);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glBindRenderbuffer(GL_RENDERBUFFER, 0);
+  pauseUpdate_ = NO;
+  needsUpdate_ = YES;
 }
 
 @end

@@ -35,6 +35,7 @@
 		48CADF46191F460F0090456C /* NSValue+BWValue.m in Sources */ = {isa = PBXBuildFile; fileRef = 48CADF45191F460F0090456C /* NSValue+BWValue.m */; };
 		48CADF491920314A0090456C /* BWModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 48CADF481920314A0090456C /* BWModel.m */; };
 		48CADF4C192032810090456C /* BWImage.m in Sources */ = {isa = PBXBuildFile; fileRef = 48CADF4B192032810090456C /* BWImage.m */; };
+		48CBEF6F19258A4E009AE06F /* CGGeometryAdditions.m in Sources */ = {isa = PBXBuildFile; fileRef = 48CBEF6E19258A4E009AE06F /* CGGeometryAdditions.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -92,6 +93,8 @@
 		48CADF481920314A0090456C /* BWModel.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BWModel.m; sourceTree = "<group>"; };
 		48CADF4A192032810090456C /* BWImage.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BWImage.h; sourceTree = "<group>"; };
 		48CADF4B192032810090456C /* BWImage.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BWImage.m; sourceTree = "<group>"; };
+		48CBEF6D19258A4E009AE06F /* CGGeometryAdditions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CGGeometryAdditions.h; sourceTree = "<group>"; };
+		48CBEF6E19258A4E009AE06F /* CGGeometryAdditions.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CGGeometryAdditions.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -185,6 +188,8 @@
 				48CADF45191F460F0090456C /* NSValue+BWValue.m */,
 				48AEC116192051CA00D4257B /* BWMath.h */,
 				48AEC117192051CA00D4257B /* BWMath.m */,
+				48CBEF6D19258A4E009AE06F /* CGGeometryAdditions.h */,
+				48CBEF6E19258A4E009AE06F /* CGGeometryAdditions.m */,
 				48AEC1841921F5EB00D4257B /* Third Party */,
 				488296E5190B0AE60061D897 /* Images.xcassets */,
 				488296D0190B0AE60061D897 /* Supporting Files */,
@@ -353,6 +358,7 @@
 				48CADF491920314A0090456C /* BWModel.m in Sources */,
 				48829709190B10AB0061D897 /* BWShader.m in Sources */,
 				48AEC118192051CA00D4257B /* BWMath.m in Sources */,
+				48CBEF6F19258A4E009AE06F /* CGGeometryAdditions.m in Sources */,
 				48CADF46191F460F0090456C /* NSValue+BWValue.m in Sources */,
 				488296DA190B0AE60061D897 /* AppDelegate.m in Sources */,
 				48AEC1B21922970500D4257B /* BWLineModel.m in Sources */,

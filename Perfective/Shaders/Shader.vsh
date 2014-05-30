@@ -7,9 +7,9 @@
 //
 
 attribute vec4 position;
-attribute vec4 texture;
+attribute highp vec4 texture;
 
-varying vec4 textureVarying;
+varying highp vec4 textureVarying;
 
 uniform mat4 projection;
 uniform mat4 projectionTransform;
@@ -17,5 +17,5 @@ uniform mat4 transform;
 
 void main() {
   textureVarying = texture;
-  gl_Position = (projectionTransform * projection) * transform * position;
+  gl_Position = projection * projectionTransform * transform * position;
 }
