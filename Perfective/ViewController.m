@@ -17,20 +17,22 @@
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
 @interface ViewController () <UIImagePickerControllerDelegate, UINavigationControllerDelegate, UIScrollViewDelegate> {
-  UIView *topLeft_;
-  UIView *topRight_;
-  UIView *bottomLeft_;
-  UIView *bottomrRight_;
+  NSMutableArray *cornerPoints_;
   
-  BWModel *loupeModel_;
+  UIScrollView *scroller_;
+  UIView *placeholderView_;
+  UIToolbar *bottomBar_;
+  UINavigationBar *navBar_;
+  
   BWModel *pictureModel_;
-  BWModel *xformedPictureModel_;
+  BWModel *loupeModel_;
   BWLineModel *overLayModel_;
   
   CADisplayLink *trackingDisplayLink_;
   CADisplayLink *zoomingDisplayLink_;
-  UIScrollView *scroller_;
-  UIView *placeholderView_;
+  
+  UITapGestureRecognizer *doubleTap_;
+  UITapGestureRecognizer *singleTap_;
   
   UIImage *currentImage_;
   
@@ -52,21 +54,11 @@
 
 #pragma mark - View Lifecycle
 
-- (void)viewDidAppear:(BOOL)animated {
-  [super viewDidAppear:animated];
-  needsUpdate_ = YES;
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-  [super viewWillAppear:animated];
-  needsUpdate_ = YES;
-}
-
 - (void)viewDidLoad {
   drawLoupe_ = NO;
   [super viewDidLoad];
   self.context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
-  
+
   pauseUpdate_ = NO;
   needsUpdate_ = YES;
 
@@ -79,18 +71,10 @@
   scroller_.delegate = self;
   
   placeholderView_ = [[UIView alloc] initWithFrame:self.view.bounds];
-  placeholderView_.backgroundColor = [UIColor colorWithWhite:1 alpha:0.3];
   [scroller_ addSubview:placeholderView_];
   
-  topLeft_ = [self setupCornerView];
-  topLeft_.center = CGPointMake(44, 44);
-  topRight_ = [self setupCornerView];
-  topRight_.center = CGPointMake(self.view.bounds.size.width - 44, 44);
-  bottomLeft_ = [self setupCornerView];
-  bottomLeft_.center = CGPointMake(44, (self.view.bounds.size.height * 0.5) - 44);
-  bottomrRight_ = [self setupCornerView];
-  bottomrRight_.center = CGPointMake(self.view.bounds.size.width - 44, (self.view.bounds.size.height * 0.5) - 44);
-
+  cornerPoints_ = [NSMutableArray array];
+  
   if (!self.context) {
       NSLog(@"Failed to create ES context");
   }
@@ -99,44 +83,99 @@
   view.context = self.context;
   view.drawableDepthFormat = GLKViewDrawableDepthFormat24;
   
-  UIButton *update = [UIButton buttonWithType:UIButtonTypeCustom];
-  [update setTitle:@"Save" forState:UIControlStateNormal];
-  [update addTarget:self action:@selector(saveImage) forControlEvents:UIControlEventTouchUpInside];
-  update.frame = CGRectMake(0, self.view.bounds.size.height - 44, 70, 44);
-  [self.view addSubview:update];
+  bottomBar_ = [[UIToolbar alloc] initWithFrame:CGRectZero];
   
-  UIButton *picImage = [UIButton buttonWithType:UIButtonTypeCustom];
-  [picImage setTitle:@"Pick" forState:UIControlStateNormal];
-  [picImage addTarget:self action:@selector(pickImage) forControlEvents:UIControlEventTouchUpInside];
-  picImage.frame = CGRectMake(self.view.bounds.size.width - 70, self.view.bounds.size.height - 44, 70, 44);
-  [self.view addSubview:picImage];
+  UIBarButtonItem *exportButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAction target:self action:@selector(saveImage)];
+  UIBarButtonItem *squareButton = [[UIBarButtonItem alloc] initWithTitle:@"Square" style:UIBarButtonItemStylePlain target:self action:@selector(declareSquare)];
+  UIBarButtonItem *lines = [[UIBarButtonItem alloc] initWithTitle:@"Lines" style:UIBarButtonItemStylePlain target:self action:@selector(declareLines)];
+  UIBarButtonItem *pickImage = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCamera target:self action:@selector(pickImage)];
   
-  UITapGestureRecognizer *doubleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTap:)];
-  doubleTap.numberOfTapsRequired = 2;
-  [placeholderView_ addGestureRecognizer:doubleTap];
+  UIBarButtonItem *flex1 = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
+  UIBarButtonItem *flex2 = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
+  UIBarButtonItem *flex3 = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
+
+  [bottomBar_ setItems:@[exportButton, flex1, squareButton, flex2, lines, flex3, pickImage]];
+  [self.view addSubview:bottomBar_];
+  
+  doubleTap_ = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTap:)];
+  doubleTap_.numberOfTapsRequired = 2;
+  [placeholderView_ addGestureRecognizer:doubleTap_];
+  
+  singleTap_ = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleSingleTap:)];
+  singleTap_.enabled = NO;
+  [singleTap_ requireGestureRecognizerToFail:doubleTap_];
+  [placeholderView_ addGestureRecognizer:singleTap_];
   
   [self setupGL];
+  
+  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(refreshGL)
+                                               name:UIApplicationWillEnterForegroundNotification object:nil];
+  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(refreshGL)
+                                               name:UIApplicationDidBecomeActiveNotification object:nil];
+  
+  navBar_ = [[UINavigationBar alloc] initWithFrame:CGRectZero];
+  [self setNavbarWithTitle:@"PERFECTIVE"];
+//  [self.view addSubview:navBar_];
 }
 
-- (UIView *)setupCornerView {
-  UIView *view = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 50, 50)];
-  view.backgroundColor = [[UIColor blueColor] colorWithAlphaComponent:0.4];
+- (void)refreshGL {
+  needsUpdate_ = YES;
+}
+
+- (void)setNavbarWithTitle:(NSString *)title {
+  UINavigationItem *navItem = [[UINavigationItem alloc] initWithTitle:title];
+  [navBar_ setItems:@[navItem]];
+}
+
+- (UIView *)cornerView {
+  CGFloat boundSize = (1.f / scroller_.zoomScale) * 50;
+  UIView *view = [[UIView alloc] initWithFrame:CGRectMake(0, 0, boundSize, boundSize)];
+  
+  UIImageView *image = [[UIImageView alloc] initWithFrame:view.bounds];
+  image.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
+  [image setImage:[UIImage imageNamed:@"circle"]];
+  [view addSubview:image];
+  
   UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handPan:)];
   [view addGestureRecognizer:pan];
   [placeholderView_ addSubview:view];
   return view;
 }
 
-- (void)viewDidLayoutSubviews {
-  [super viewDidLayoutSubviews];
+- (void)viewWillLayoutSubviews {
+  [super viewWillLayoutSubviews];
+
+  BOOL zoomToMin = (scroller_.zoomScale == scroller_.minimumZoomScale);
+  BOOL zoomToMax = (scroller_.zoomScale == scroller_.maximumZoomScale);
   scroller_.frame = self.view.bounds;
+  [self setZoomConstraints];
+  
+  if (scroller_.zoomScale <= scroller_.minimumZoomScale || zoomToMin) {
+    scroller_.zoomScale = scroller_.minimumZoomScale;
+  } else if (scroller_.zoomScale > scroller_.maximumZoomScale || zoomToMax) {
+    scroller_.zoomScale = scroller_.maximumZoomScale;
+  }
+  
   [self setScrollEdgeInsets];
   needsUpdate_ = YES;
+  
+  navBar_.frame = CGRectFramedTopInRect(self.view.bounds, CGSizeMake(self.view.bounds.size.width, 64), 0, YES);
+  bottomBar_.frame = CGRectFramedBottomInRect(self.view.bounds, CGSizeMake(self.view.bounds.size.width, 44), 0, YES);
+}
+
+- (void)willRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration {
+  [super willRotateToInterfaceOrientation:toInterfaceOrientation duration:duration];
+  [self startTrackingDisplayLinkIfNeccessary];
+}
+
+- (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation {
+  [super didRotateFromInterfaceOrientation:fromInterfaceOrientation];
+  [self invalidateTrackingDisplayLink];
 }
 
 - (void)dealloc {
   [self tearDownGL];
-  
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
   if ([EAGLContext currentContext] == self.context) {
     [EAGLContext setCurrentContext:nil];
   }
@@ -161,12 +200,19 @@
 
 - (void)handPan:(UIPanGestureRecognizer *)panGesture {
   if (panGesture.state == UIGestureRecognizerStateEnded) {
+    NSArray *newCorners = [self sortedCornersForQuad];
+    if (newCorners.count == 4) {
+      [cornerPoints_ removeAllObjects];
+      [cornerPoints_ addObjectsFromArray:newCorners];
+    } else {
+      // HANDLE NON-PLANAR ERROR
+    }
     drawLoupe_ = NO;
     needsUpdate_ = YES;
     return;
   }
   panGesture.view.center = [panGesture locationInView:placeholderView_];
-//  [self computeLoupeDateFromPoint:panGesture.view.center];
+  [self computeLoupeDateFromScreenPoint:[panGesture locationInView:self.view]];
   drawLoupe_ = YES;
   needsUpdate_ = YES;
 }
@@ -186,6 +232,68 @@
   }
 }
 
+- (void)handleSingleTap:(UITapGestureRecognizer *)singleTap {
+  NSLog(@"Single Tap");
+  CGPoint location = [singleTap locationInView:placeholderView_];
+  UIView *corner = [self cornerView];
+  corner.center = location;
+  [cornerPoints_ addObject:corner];
+  if (cornerPoints_.count == 4) {
+    singleTap_.enabled = NO;
+    [self setNavbarWithTitle:@"PERFECTIVE"];
+    //Sort points by quad.
+    NSArray *newCorners = [self sortedCornersForQuad];
+    if (newCorners.count == 4) {
+      [cornerPoints_ removeAllObjects];
+      [cornerPoints_ addObjectsFromArray:newCorners];
+      needsUpdate_ = YES;
+    } else {
+      // HANDLE NON-PLANAR ERROR
+    }
+  }
+}
+
+- (NSArray *)sortedCornersForQuad {
+  NSMutableArray *corners;
+  if (cornerPoints_.count == 4) {
+    for (int i = 1; i < 4; i ++) {
+      corners = [NSMutableArray arrayWithArray:cornerPoints_];
+      UIView *first = [cornerPoints_ objectAtIndex:0];
+      UIView *second = [cornerPoints_ objectAtIndex:i];
+      [corners removeObjectAtIndex:0];
+      [corners removeObjectAtIndex:i - 1];
+      UIView *third = [corners objectAtIndex:0];
+      UIView *fourth = [corners objectAtIndex:1];
+      [corners removeAllObjects];
+      CGPoint i = IntersectionOfPoints(first.center, second.center, third.center, fourth.center);
+      if (!CGPointEqualToPoint(i, CGPointZero)) {
+        // found our intersectiong point set
+        NSLog(@"Found Point");
+        // sort left to right
+        UIView *set1L = (first.center.x < second.center.x) ? first : second;
+        UIView *set1R = (first.center.x < second.center.x) ? second : first;
+        
+        UIView *set2L = (third.center.x < fourth.center.x) ? third : fourth;
+        UIView *set2R = (third.center.x < fourth.center.x) ? fourth : third;
+        
+        if (set1L.center.y < set2L.center.y) {
+          [corners addObject:set1L];
+          [corners addObject:set2R];
+          [corners addObject:set2L];
+          [corners addObject:set1R];
+        } else {
+          [corners addObject:set2L];
+          [corners addObject:set1R];
+          [corners addObject:set1L];
+          [corners addObject:set2R];
+        }
+        break;
+      }
+    }
+  }
+  return corners;
+}
+
 #pragma mark - Scroll View Delegate
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
@@ -197,7 +305,10 @@
 }
 
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
-  if (!decelerate) {
+  if (scroller_.layer.animationKeys.count && !decelerate) {
+    CAAnimation *animation = [scroller_.layer animationForKey:scroller_.layer.animationKeys.firstObject];
+    [self performSelector:@selector(invalidateTrackingDisplayLink) withObject:nil afterDelay:animation.duration + 0.001];
+  } else if (!decelerate) {
     [self invalidateTrackingDisplayLink];
   }
 }
@@ -208,6 +319,13 @@
 
 - (void)scrollViewDidEndZooming:(UIScrollView *)scrollView withView:(UIView *)view atScale:(CGFloat)scale {
   [self invalidateZoomingDisplayLink];
+}
+
+- (void)scrollViewDidZoom:(UIScrollView *)scrollView {
+  for (UIView *view in cornerPoints_) {
+    CGFloat boundSize = (1.f / scroller_.zoomScale) * 50;
+    view.bounds = CGRectMake(0, 0, boundSize, boundSize);
+  }
 }
 
 - (UIView *)viewForZoomingInScrollView:(UIScrollView *)scrollView {
@@ -226,6 +344,21 @@
     contentInset = UIEdgeInsetsMake(0, inset, 0, inset);
   }
   scroller_.contentInset = contentInset;
+}
+
+- (void)setZoomConstraints {
+  CGFloat imageAspect = placeholderView_.bounds.size.width / placeholderView_.bounds.size.height;
+  CGFloat viewAspect = self.view.bounds.size.width / self.view.bounds.size.height;
+  
+  CGFloat zoomScale = (imageAspect > viewAspect ?
+                       self.view.bounds.size.width / placeholderView_.bounds.size.width:
+                       self.view.bounds.size.height / placeholderView_.bounds.size.height);
+  if (zoomScale < 1) {
+    scroller_.minimumZoomScale = zoomScale;
+  } else {
+    scroller_.minimumZoomScale = zoomScale;
+    scroller_.maximumZoomScale = zoomScale * 2;
+  }
 }
 
 #pragma mark - Display Link
@@ -264,10 +397,6 @@
 #pragma mark - Image Picker
 
 - (void)imagePickerController:(UIImagePickerController *)picker didFinishPickingMediaWithInfo:(NSDictionary *)info {
-  topLeft_.center = CGPointMake(44, 44);
-  topRight_.center = CGPointMake(self.view.bounds.size.width - 44, 44);
-  bottomLeft_.center = CGPointMake(44, (self.view.bounds.size.height * 0.5) - 44);
-  bottomrRight_.center = CGPointMake(self.view.bounds.size.width - 44, (self.view.bounds.size.height * 0.5) - 44);
   //  horizScale_ = 1.f;
   UIImage *image = [info valueForKey:UIImagePickerControllerOriginalImage];
   pauseUpdate_ = NO;
@@ -294,12 +423,20 @@
   //Load Image Into GL
   BWImage *selectedImage = [[BWImage alloc] initWithImage:image];
   pictureModel_.imageTexture = selectedImage;
+  loupeModel_.imageTexture = selectedImage;
+  
   [self computeDataForSquare:pictureModel_.mesh
                  withTopLeft:CGPointMake(0, 0)
                     topRight:CGPointMake(image.size.width, 0)
                   bottomLeft:CGPointMake(0, image.size.height)
                  bottomRight:CGPointMake(image.size.width, image.size.height)];
   
+  [self computeDataForSquare:overLayModel_.mesh
+                 withTopLeft:CGPointMake(0, 0)
+                    topRight:CGPointMake(image.size.width, 0)
+                  bottomLeft:CGPointMake(image.size.width, image.size.height)
+                 bottomRight:CGPointMake(0, image.size.height)];
+
   //Tell GL Update is needed
   needsUpdate_ = YES;
   
@@ -312,27 +449,15 @@
   
   placeholderView_.frame = CGRectMake(0, 0, image.size.width, image.size.height);
   
-  CGFloat imageAspect = image.size.width / image.size.height;
-  CGFloat viewAspect = self.view.bounds.size.width / self.view.bounds.size.height;
-
-  CGFloat zoomScale = (imageAspect > viewAspect ?
-                       self.view.bounds.size.width / image.size.width:
-                       self.view.bounds.size.height / image.size.height);
-
-  if (zoomScale < 1) {
-    scroller_.minimumZoomScale = zoomScale;
-  } else {
-    scroller_.minimumZoomScale = zoomScale;
-    scroller_.maximumZoomScale = zoomScale * 2;
-  }
-  scroller_.zoomScale = zoomScale;
+  [self setZoomConstraints];
+  scroller_.zoomScale = scroller_.minimumZoomScale;
   [self setScrollEdgeInsets];
 }
 
 - (void)saveImage {
   // Figure out drawing Rect and transforms.
   
-  CGSize originalPictureSize = xformedPictureModel_.imageTexture.originalImage.size;
+  CGSize originalPictureSize; // = xformedPictureModel_.imageTexture.originalImage.size;
   
   //  GLKMatrix4 transHomography = xformedPictureModel_.transform;
   GLKMatrix4 projection = GLKMatrix4MakeOrtho(0, originalPictureSize.width, originalPictureSize.height, 0, 1, -1);
@@ -374,8 +499,8 @@
   //  CGFloat screenRatio = self.view.bounds.size.height / self.view.bounds.size.width;
   //  CGFloat newWindowHeight = boundingBox.size.width * screenRatio;
   //  GLKMatrix4 newWindowProjection = GLKMatrix4MakeOrtho(boundingBox.origin.x, boundingBox.size.width + boundingBox.origin.x, boundingBox.origin.y + boundingBox.size.height, boundingBox.origin.y, 1, -1);
-  GLKMatrix4 oldXform = xformedPictureModel_.projection;
-  GLKMatrix4 oldXformTreans = xformedPictureModel_.projectionTransform;
+  GLKMatrix4 oldXform; // = xformedPictureModel_.projection;
+  GLKMatrix4 oldXformTreans; // = xformedPictureModel_.projectionTransform;
   
   //  xformedPictureModel_.projectionTransform = GLKMatrix4Identity;
   //  xformedPictureModel_.projection = projection;
@@ -415,8 +540,8 @@
   glClearColor(1.f, 0.f, 0.f, 1.f);
   glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
   
-  [xformedPictureModel_ use];
-  [xformedPictureModel_ draw];
+//  [xformedPictureModel_ use];
+//  [xformedPictureModel_ draw];
   
   glBindTexture(GL_TEXTURE_2D, 0);
   glBindVertexArrayOES(0);
@@ -458,13 +583,35 @@
   needsUpdate_ = YES;
 }
 
+#pragma mark - action responders 
+
+- (void)declareSquare {
+  [self setNavbarWithTitle:@"Tap Square Corners"];
+  singleTap_.enabled = YES;
+  for (UIView *corner in cornerPoints_) {
+    [corner removeFromSuperview];
+  }
+  [cornerPoints_ removeAllObjects];
+  needsUpdate_ = YES;
+}
+
+- (void)declareLines {
+  [self setNavbarWithTitle:@"Tap Parellel Lines"];
+  singleTap_.enabled = YES;
+  for (UIView *corner in cornerPoints_) {
+    [corner removeFromSuperview];
+  }
+  [cornerPoints_ removeAllObjects];
+  needsUpdate_ = YES;
+}
+
 #pragma mark - mesh data computation
 
 - (void)computeDataForSquare:(BWMesh *)mesh
                  withTopLeft:(CGPoint)topLeft
                     topRight:(CGPoint)topRight
                   bottomLeft:(CGPoint)bottomLeft
-                 bottomRight:(CGPoint)bottomRight{
+                 bottomRight:(CGPoint)bottomRight {
   
   GLKVector4 w = QuadrilateralQForPoints(topLeft, topRight, bottomLeft, bottomRight);
   
@@ -481,13 +628,13 @@
   [mesh setTexCoor0:GLKVector3Make(1.f * w.w, 1.f * w.w, 1.f / w.w) atIndex:3];
 }
 
-- (void)computeLoupeDateFromPoint:(CGPoint)point {
-  
+- (void)computeLoupeDateFromScreenPoint:(CGPoint)point {
   float zoomScale = 2;
   float loupeSize = 128;
   float loupeOffset = 50;
   CGPoint loupeCenter = point;
   loupeCenter.y -= loupeOffset;
+  
   if (loupeCenter.y < loupeSize * 0.5) {
     //Past the top
     /*
@@ -506,11 +653,9 @@
     loupeCenter.x = loupeCenter.x - xOffset > loupeSize ? loupeCenter.x - xOffset : loupeCenter.x + xOffset;
   }
   
-  
-  CGPoint centerOfSample = point;
-  CGPoint uvSampleCenter; // = CGPointMake(centerOfSample.x / scaledImageSize.width, centerOfSample.y / scaledImageSize.height);
-  CGFloat uvOffsetSize;// = ((loupeSize / scaledImageSize.width) / zoomScale) * 0.5;
-  
+  CGPoint centerOfSample = [placeholderView_ convertPoint:point fromView:self.view];
+  CGPoint uvSampleCenter = CGPointMake(centerOfSample.x / placeholderView_.bounds.size.width, centerOfSample.y / placeholderView_.bounds.size.height);
+  CGFloat uvOffsetSize = ((loupeSize / placeholderView_.bounds.size.width) / zoomScale) * 0.5;
   
   //              x  y   z    u   v   q    u   v   q
   //top left      0, 1,  2 -  3,  4,  5 -  6,  7,  8
@@ -548,12 +693,9 @@
 #pragma mark - GLKView Methods
 
 - (void)setupGL {
-  
   [EAGLContext setCurrentContext:self.context];
-  
-  //  glEnable(GL_DEPTH_TEST);
+
   glEnable(GL_TEXTURE_2D);
-  
   
   glEnable(GL_BLEND);
   glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -565,32 +707,22 @@
   
   BWMesh *loupeMesh = [[BWMesh alloc] initWithNumberOfVertices:4];
   BWMesh *pictureMesh = [[BWMesh alloc] initWithNumberOfVertices:4];
-  
-//  [self computeDataForSquare:pictureMesh withTopLeft:CGPointMake(0, 0) topRight:CGPointMake(scaledImageSize.width, 0) bottomLeft:CGPointMake(0, scaledImageSize.height) bottomRight:CGPointMake(scaledImageSize.width, scaledImageSize.height)];
-  
+
   BWMesh *lineMesh = [[BWMesh alloc] initWithNumberOfVertices:4];
-//  [self computeDataForSquare:lineMesh withTopLeft:CGPointMake(0, 0) topRight:CGPointMake(scaledImageSize.width, 0) bottomLeft:CGPointMake(scaledImageSize.width, scaledImageSize.height) bottomRight:CGPointMake(0, scaledImageSize.height)];
-  
+
   loupeModel_ = [[BWModel alloc] init];
   loupeModel_.shader = loupeShader;
   loupeModel_.mesh = loupeMesh;
-//  loupeModel_.imageTexture = selectedImage;
   
   pictureModel_ = [[BWModel alloc] init];
   pictureModel_.shader = pictureShader;
   pictureModel_.mesh = pictureMesh;
-//  pictureModel_.imageTexture = selectedImage;
   
   overLayModel_ = [[BWLineModel alloc] init];
   overLayModel_.shader = pictureShader;
   overLayModel_.mesh = lineMesh;
   overLayModel_.lineWidth = 2.f;
   overLayModel_.lineColor = GLKVector4Make(1, 0.4, 0.0, 0.2);
-  
-  xformedPictureModel_ = [[BWModel alloc] init];
-  xformedPictureModel_.shader = pictureShader;
-  xformedPictureModel_.mesh = pictureMesh;
-//  xformedPictureModel_.imageTexture = selectedImage;
 
   [self loadImage:[UIImage imageNamed:@"photo.JPG"]];
 }
@@ -610,13 +742,24 @@
     GLKMatrix4 projectionXform = GLKMatrix4Scale(GLKMatrix4MakeTranslation(-contentOffset.x, -contentOffset.y, 0), viewportZoomScale, viewportZoomScale, 1);
     pictureModel_.projection = projection;
     pictureModel_.projectionTransform = projectionXform;
+    
+    overLayModel_.projection = projection;
+    overLayModel_.projectionTransform = projectionXform;
+    if (cornerPoints_.count == 4) {
+      CGPoint corner1, corner2, corner3, corner4;
+      corner1 = ((UIView *)cornerPoints_[0]).center;
+      corner2 = ((UIView *)cornerPoints_[1]).center;
+      corner3 = ((UIView *)cornerPoints_[2]).center;
+      corner4 = ((UIView *)cornerPoints_[3]).center;
+      overLayModel_.transform = HomographicMatrix(placeholderView_.bounds.size.width,
+                                                  placeholderView_.bounds.size.height,
+                                                  corner1, corner2, corner3, corner4);
+    }
+    
 //    pictureModel_.transform = projectionXform;
     
-//    overLayModel_.projection = projection;
-//    overLayModel_.projectionTransform = projectionXform;
-//    overLayModel_.transform = HomographicMatrix(scaledImageSize.width, scaledImageSize.height, topLeft_.center, topRight_.center, bottomLeft_.center, bottomrRight_.center);
-    
-//    GLKMatrix4 transHomography = GLKMatrix4Multiply(GLKMatrix4MakeScale(horizScale_, 1.f, 1.f), TransHomographicMatrix(scaledImageSize.width, scaledImageSize.height, topLeft_.center, topRight_.center, bottomLeft_.center, bottomrRight_.center));
+
+//    GLKMatrix4 transHomography = GLKMatrix4Multiply(GLKMatrix4MakeScale(horizScale_, 1.f, 1.f), TransHomographicMatrix(scaledImageSize.width, scaledImageSize.height, corner1_.center, corner2_.center, corner3_.center, corner4_.center));
 //    int viewport[] = {0, 0, self.view.bounds.size.width, self.view.bounds.size.height};
 //    
 //    GLKVector3 topLeft = GLKMathProject(GLKVector3Make(0, 0, 0), transHomography, projection, viewport);
@@ -645,7 +788,7 @@
 //    xformedPictureModel_.projection = projection;
 //    xformedPictureModel_.transform = transHomography;
 //    xformedPictureModel_.projectionTransform = GLKMatrix4Translate(projectionXform, 0, 0.5 * self.view.bounds.size.height, 0);
-//    loupeModel_.projection = GLKMatrix4Multiply(projection, projectionXform);
+    loupeModel_.projection = GLKMatrix4MakeOrtho(0, self.view.bounds.size.width, self.view.bounds.size.height, 0, 1, -1);
     
   }
 }
@@ -665,6 +808,13 @@
 
   [pictureModel_ use];
   [pictureModel_ draw];
+  
+  if (cornerPoints_.count == 4) {
+    [overLayModel_ use];
+    overLayModel_.lineWidth = 8.f;
+    overLayModel_.lineColor = GLKVector4Make(1.f, 0.7f, 0.4f, 0.8f);
+    [overLayModel_ draw];
+  }
   
 //  [overLayModel_ use];
 //  GLint dstState;
@@ -687,14 +837,14 @@
 //    [xformedPictureModel_ draw];
 //  }
 //  
-//  if (drawLoupe_) {
-//    [loupeModel_ use];
-//    GLfloat circleRadius = 0.04;
-//    [loupeModel_.shader setUniform:@"circleRadius" withValue:&circleRadius];
-//    GLKVector4 diffuseColor = GLKVector4Make(0.7, 0.4, 0.0, 0.4);
-//    [loupeModel_.shader setUniform:@"diffuseColor" withValue:&diffuseColor];
-//    [loupeModel_ draw];
-//  }
+  if (drawLoupe_) {
+    [loupeModel_ use];
+    GLfloat circleRadius = 0.04;
+    [loupeModel_.shader setUniform:@"circleRadius" withValue:&circleRadius];
+    GLKVector4 diffuseColor = GLKVector4Make(0.7, 0.4, 0.0, 0.4);
+    [loupeModel_.shader setUniform:@"diffuseColor" withValue:&diffuseColor];
+    [loupeModel_ draw];
+  }
   
   glBindTexture(GL_TEXTURE_2D, 0);
   glBindVertexArrayOES(0);
