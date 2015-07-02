@@ -22,3 +22,6 @@ CGFloat DistanceBetweenTwoPoints(CGPoint point1, CGPoint point2);
 CGPoint IntersectionOfPoints(CGPoint topLeft, CGPoint bottomRight, CGPoint topRight, CGPoint bottomLeft);
 GLKVector4 QuadrilateralQForPoints(CGPoint topLeft, CGPoint topRight, CGPoint bottomLeft, CGPoint bottomRight);
 CGRect BoundingBoxForPoints(CGPoint topLeft, CGPoint topRight, CGPoint bottomLeft, CGPoint bottomRight);
+
+GLKMatrix4 GLKMatrix4Slerp(GLKMatrix4 from, GLKMatrix4 to, CGFloat amount);
+CGFloat ComputeAspectFromPoints(CGPoint topLeft, CGPoint bottomRight, CGPoint topRight, CGPoint bottomLeft, CGFloat imageWidth, CGFloat imageHeight);

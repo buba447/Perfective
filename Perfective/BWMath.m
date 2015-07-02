@@ -40,6 +40,14 @@ GLKVector3 multmv(GLKMatrix3 m, GLKVector3 v) { // multiply matrix and vector
   return r;
 }
 
+GLKVector3 multmvt(GLKMatrix3 m, GLKVector3 v) { // multiply matrix and transposed vector
+  GLKVector3 r;
+  r.v[0] = m.m[0]*v.v[0] + m.m[1]*v.v[0] + m.m[2]*v.v[0];
+  r.v[1] = m.m[3]*v.v[1] + m.m[4]*v.v[1] + m.m[5]*v.v[1];
+  r.v[2] = m.m[6]*v.v[2] + m.m[7]*v.v[2] + m.m[8]*v.v[2];
+  return r;
+}
+
 GLKMatrix3 BasisToPoints(CGFloat x1, CGFloat y1, CGFloat x2, CGFloat y2, CGFloat x3, CGFloat y3, CGFloat x4, CGFloat y4) {
   GLKMatrix3 m;
   m = GLKMatrix3Make(x1, x2, x3, y1, y2, y3, 1,  1,  1);
@@ -134,11 +142,64 @@ CGRect BoundingBoxForPoints(CGPoint topLeft, CGPoint topRight, CGPoint bottomLef
   boundingBox.origin.x = topLeft.x < bottomLeft.x ? topLeft.x : bottomLeft.x;
   boundingBox.origin.y = topLeft.y < topRight.y ? topLeft.y : topRight.y;
   
-  boundingBox.size.width  = topRight.x > bottomRight.x ? topRight.x : bottomRight.x;
-  boundingBox.size.height  = bottomLeft.y > bottomRight.y ? bottomLeft.y : bottomRight.y;
-  
-  boundingBox.size.width -= boundingBox.origin.x;
-  boundingBox.size.height -= boundingBox.origin.y;
+  boundingBox.size.width  = (topRight.x > bottomRight.x ? topRight.x : bottomRight.x) - boundingBox.origin.x;
+  boundingBox.size.height  = (bottomLeft.y > bottomRight.y ? bottomLeft.y : bottomRight.y) - boundingBox.origin.y;
   
   return boundingBox;
+}
+
+CGFloat sqr(CGFloat num) {
+  return pow(num, 2);
+}
+
+CGFloat ComputeAspectFromPoints(CGPoint topLeft, CGPoint bottomRight, CGPoint topRight, CGPoint bottomLeft, CGFloat imageWidth, CGFloat imageHeight) {
+  CGFloat u, v;
+  u = imageWidth * 0.5;
+  v = imageHeight * 0.5;
+  GLKVector3 m3 = GLKVector3Make(bottomLeft.x, bottomLeft.y, 1);
+  GLKVector3 m4 = GLKVector3Make(bottomRight.x, bottomRight.y, 1);
+  GLKVector3 m1 = GLKVector3Make(topLeft.x, topLeft.y, 1);
+  GLKVector3 m2 = GLKVector3Make(topRight.x, topRight.y, 1);
+
+  CGFloat m1x = m1.x - u;
+  CGFloat m1y = m1.y - v;
+  CGFloat m2x = m2.x - u;
+  CGFloat m2y = m2.y - v;
+  CGFloat m3x = m3.x - u;
+  CGFloat m3y = m3.y - v;
+  CGFloat m4x = m4.x - u;
+  CGFloat m4y = m4.y - v;
+
+  CGFloat k2 = ((m1y - m4y)*m3x - (m1x - m4x)*m3y + m1x*m4y - m1y*m4x) /
+  ((m2y - m4y)*m3x - (m2x - m4x)*m3y + m2x*m4y - m2y*m4x) ;
+  
+  CGFloat k3 = ((m1y - m4y)*m2x - (m1x - m4x)*m2y + m1x*m4y - m1y*m4x) /
+  ((m3y - m4y)*m2x - (m3x - m4x)*m2y + m3x*m4y - m3y*m4x) ;
+  
+  CGFloat f_squared = -((k3*m3y - m1y)*(k2*m2y - m1y) + (k3*m3x - m1x)*(k2*m2x - m1x)) / ((k3 - 1)*(k2 - 1));
+
+  CGFloat whRatio = sqrt((sqr(k2 - 1) + sqr(k2*m2y - m1y)/f_squared + sqr(k2*m2x - m1x)/f_squared) /
+                         (sqr(k3 - 1) + sqr(k3*m3y - m1y)/f_squared + sqr(k3*m3x - m1x)/f_squared));
+
+  if ((k2==1 && k3==1) || whRatio == 0) {
+    whRatio = sqrt((sqr(m2y-m1y) + sqr(m2x-m1x)) /
+                   (sqr(m3y-m1y) + sqr(m3x-m1x)));
+  }
+
+  return whRatio;
+}
+
+GLKMatrix4 GLKMatrix4Slerp(GLKMatrix4 from, GLKMatrix4 to, CGFloat amount) {
+  GLKQuaternion q1 = GLKQuaternionMakeWithMatrix4(from);
+  GLKQuaternion q2 = GLKQuaternionMakeWithMatrix4(to);
+  GLKQuaternion r1 = GLKQuaternionSlerp(q1, q2, amount);
+  GLKVector4 t1 = GLKVector4Make(from.m30, from.m31, from.m32, from.m33);
+  GLKVector4 t2 = GLKVector4Make(to.m30, to.m31, to.m32, to.m33);
+  GLKVector4 r2 = GLKVector4Lerp(t1, t2, amount);
+  
+  GLKMatrix4 rX = GLKMatrix4MakeWithQuaternion(r1);
+  rX.m30 = r2.x;
+  rX.m31 = r2.y;
+  rX.m32 = r2.z;
+  return rX;
 }

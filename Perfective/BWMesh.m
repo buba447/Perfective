@@ -7,6 +7,7 @@
 //
 
 #import "BWMesh.h"
+#import <GLKit/GLKit.h>
 
 @implementation BWMesh {
   GLfloat *data_;

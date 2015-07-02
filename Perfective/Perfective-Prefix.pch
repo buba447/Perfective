@@ -12,7 +12,9 @@
 
 #ifdef __OBJC__
   #import <UIKit/UIKit.h>
+  #import <GLKit/GLKit.h>
+  #import <OpenGLES/ES2/glext.h>
   #import <Foundation/Foundation.h>
-  #import "NSValue+BWValue.h"
   #import "BWMath.h"
+  #import "CGGeometryAdditions.h"
 #endif
